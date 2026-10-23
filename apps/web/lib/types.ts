@@ -1,0 +1,109 @@
+import type { Node, Edge } from "@xyflow/react";
+export type Field = {
+  type: string;
+  default: unknown;
+  description: string;
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+  multiline?: boolean;
+};
+export type Spec = {
+  type: string;
+  label: string;
+  category: string;
+  description: string;
+  config_schema: Record<string, Field>;
+  input_schema: { type: string };
+  output_schema: { type: string };
+  modes: string[];
+};
+export type NodeData = {
+  label: string;
+  config: Record<string, unknown>;
+  kind?: string;
+  status?: string;
+  duration_ms?: number;
+  findings?: number;
+  description?: string;
+  category?: string;
+  step?: number;
+  preview?: string;
+  sourceSide?: "left" | "right" | "top" | "bottom";
+  targetSide?: "left" | "right" | "top" | "bottom";
+  onExpand?: () => void;
+};
+export type FlowNode = Node<NodeData>;
+export type Graph = {
+  id: string;
+  name: string;
+  version: number;
+  published: boolean;
+  nodes: FlowNode[];
+  edges: Edge[];
+};
+export type Finding = {
+  id: string;
+  policy_id: string;
+  severity: string;
+  outcome: string;
+  quote: string;
+  segment_id: string;
+  start?: number;
+  explanation: string;
+  review_status: string;
+  evaluator?: string;
+};
+export type Segment = {
+  id: string;
+  speaker: string;
+  text: string;
+  start: number | null;
+  end: number | null;
+  timestamp_quality: string;
+};
+export type Output = {
+  transcript?: Segment[];
+  findings?: Finding[];
+  audio?: string;
+  unsupported?: string[];
+  coverage?: string[];
+  passed?: boolean;
+  [key: string]: unknown;
+};
+export type NodeRecord = {
+  status: string;
+  input?: Output;
+  output?: Output;
+  duration_ms?: number;
+  error?: string;
+  provider_execution_id?: string;
+  started_at?: number;
+  attempts?: number;
+  reason?: string;
+  ended_at?: number;
+};
+export type Run = {
+  id: string;
+  workflow_id: string;
+  version: number;
+  status: string;
+  mode: string;
+  created_at: number;
+  nodes: Record<string, NodeRecord>;
+  graph: Graph;
+  request: { scenario: string; seed: number };
+};
+export type RunSummary = Omit<Run, "nodes" | "graph"> & { name: string; finding_count: number };
+export type Event = {
+  seq: number;
+  event: string;
+  node_id?: string;
+  status: string;
+  timestamp: number;
+  error?: string;
+  reason?: string;
+  attempts?: number;
+  duration_ms?: number;
+};
+export type Review = { finding_id: string; status: string; created_at: number };

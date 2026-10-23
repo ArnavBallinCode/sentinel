@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.next-e2e/
+.DS_Store
+.ruff_cache/
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+*.tsbuildinfo
+*.db*
+data/
+test-results/
+playwright-report/

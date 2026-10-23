@@ -1,0 +1,26 @@
+"use client";
+import { ArrowRight, ArrowUpRight, AudioLines, FileAudio, GitCompareArrows, Play, Shield, ShieldCheck } from "lucide-react";
+import type { RunSummary, Spec } from "@/lib/types";
+import { CapabilityExplorer } from "./capability-explorer";
+
+const capabilities = [
+  { number: "01", Icon: Shield, title: "Red-team the agent", text: "Generate attacks from your agent's own prompt (English or Hinglish), run multi-turn attacker-vs-agent calls, and see exactly where it breaks.", label: "Open stress-test pipeline", workflow: "adversarial", badge: "LLM attacker · Groq", className: "violet" },
+  { number: "02", Icon: AudioLines, title: "Bring in real calls", text: "Connect a Bolna agent, call an opted-in participant, and inspect the provider's actual execution.", label: "Open live-call pipeline", workflow: "voice", badge: "Bolna integration", className: "blue" },
+  { number: "03", Icon: FileAudio, title: "Audit real calls", text: "Pick a recent Bolna call, hear the actual recording, and let the judge flag manipulation, data leaks and PII line by line.", label: "Open audit pipeline", workflow: "audit", badge: "Real or uploaded evidence", className: "mint" },
+];
+export function WorkspaceOverview({ runs, recordings, providers, bolna, onWorkflow, onOpen, onRun, registry, onExplore }: {
+  runs: RunSummary[]; recordings: number; providers: string[]; bolna: boolean;
+  onWorkflow: (id: string) => void; onOpen: (name: string) => void; onRun: (run: RunSummary) => void;
+  registry: Record<string, Spec>; onExplore: (kind: string) => void;
+}) {
+  const completed = runs.filter(r => r.status === "completed");
+  const findings = { size: runs.reduce((sum, run) => sum + (run.finding_count || 0), 0) };
+  return <main className="workspace-overview">
+    <section className="overview-hero"><div><div className="intro-tag">RED-TEAM · ENFORCE · PROVE</div><h1>Break your voice agent<br/><span>before your callers do.</span></h1><p>An LLM attacker calls your Bolna agent's real prompt, Sentinel blocks every unauthorized tool call, an evidence-grounded judge finds the failure, and Sentinel writes the fix and proves it with a replay.</p><div className="hero-actions"><button className="button button-primary" onClick={() => onWorkflow("adversarial")}><Play size={16}/> Run the attack demo <ArrowRight size={16}/></button><button className="button button-outline" onClick={() => onWorkflow("voice")}><AudioLines size={16}/> Test a live Bolna agent</button></div></div><div className="trust-loop"><div className="loop-header"><ShieldCheck size={18}/><span>THE SENTINEL LOOP</span></div>{["Attack with a hostile caller", "Block the unauthorized tool call", "Pin evidence to the exact words", "Fix, replay, prove the diff"].map((s,i) => <div className="loop-step" key={s}><span>{String(i+1).padStart(2,"0")}</span><strong>{s}</strong>{i===3 ? <GitCompareArrows size={17}/> : <ArrowRight size={17}/>}</div>)}<p>Every verdict traces back to a recorded, immutable run.</p></div></section>
+    <section className="overview-metrics" aria-label="Workspace statistics">{[[runs.length,"Test runs"],[completed.length,"Completed"],[findings.size,"Findings caught"],[recordings,"Calls audited"]].map(([value,label]) => <div key={label}><strong>{value}</strong><span>{label}</span></div>)}</section>
+    <div className="section-heading"><div><span className="intro-tag">THREE WAYS TO START</span><h2>Choose what you want to prove.</h2></div></div>
+    <section className="capability-grid">{capabilities.map(({number,Icon,title,text,label,workflow,badge,className}) => <button key={number} className={`capability-card ${className}`} onClick={() => onWorkflow(workflow)}><div className="capability-top"><span><Icon size={23}/></span><small>{number}</small></div><h3>{title}</h3><p>{text}</p><span className="capability-badge">{badge}</span><div className="card-action">{label}<ArrowRight size={17}/></div></button>)}</section>
+    <section className="overview-lower"><div><div className="section-heading"><h2>Recent runs</h2><button onClick={() => onOpen("history")}>All runs <ArrowUpRight size={14}/></button></div>{runs.length ? runs.slice(0,4).map(r => <button className="recent-run" key={r.id} onClick={() => onRun(r)}><span className={`dot ${r.status}`}/><div><strong>{r.name || r.workflow_id}</strong><small>{new Date(r.created_at * 1000).toLocaleString()} · v{r.version}</small></div><span className={`badge ${r.finding_count ? "warning" : "live"}`}>{r.finding_count ? `${r.finding_count} finding${r.finding_count > 1 ? "s" : ""}` : "clean"}</span><span className="badge">{r.mode}</span><ArrowUpRight size={15}/></button>) : <p className="empty">Run the attack demo to create your first evidence record.</p>}</div><div className="integration-panel"><h2>Connections</h2><div><AudioLines size={18}/><span>Bolna voice platform</span><span className={`badge ${bolna ? "live" : ""}`}>{bolna ? "Connected" : "Not configured"}</span></div><div><ShieldCheck size={18}/><span>Semantic evaluator</span><span className="badge">{providers.length ? providers.join(" + ") : "Optional"}</span></div><button onClick={() => onOpen("settings")}>Manage connections <ArrowRight size={15}/></button></div></section>
+    <CapabilityExplorer registry={registry} onExplore={onExplore}/>
+  </main>;
+}
