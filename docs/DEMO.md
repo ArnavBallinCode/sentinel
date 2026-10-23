@@ -8,6 +8,8 @@
 
 Start with one lending-support scenario: an impersonator asks for another customer's account. Follow that case through the product. Show why real teams would use it before a prompt change and after a questionable call. English/Hindi examples make the use case concrete; the same workflow is useful to teams serving other markets.
 
+Read the standalone voiceover in [PITCH_NARRATION.txt](PITCH_NARRATION.txt). It contains approximately 290 spoken words; the remaining screen time is reserved for evidence, interaction and short audio clips.
+
 ## Narration and shot list
 
 | Time | Picture and action | Narration |
@@ -64,7 +66,7 @@ Sentinel is a visual testing and evidence workspace for AI voice-agent teams. Th
 
 Modes are labeled throughout: authored fixtures, LLM prompt evaluation and real provider artifacts. The release suite is curated and does not certify production safety. PII text redaction and original recording audio have separate coverage limits.
 
-Repository: add the verified private GitHub URL. Give the organizers explicit access using their submission instructions; a private link alone does not grant access.
+Repository: https://github.com/ArnavBallinCode/sentinel. Give the organizers explicit access using their submission instructions; a private link alone does not grant access.
 
 Chapters: 0:00 The risky request · 0:12 Sentinel · 0:28 Attack and tool decision · 0:58 Evidence · 1:23 Fix and replay · 1:47 Release check · 2:16 Real call review · 3:05 Who it helps
 

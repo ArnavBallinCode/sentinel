@@ -151,7 +151,17 @@ test("overview navigation, theme, and compact screen", async ({ page }) => {
 test("demo studio executes a bilingual release check and exposes recorded evidence", async ({page}) => {
   test.setTimeout(60000);
   const errors: string[]=[];page.on('pageerror', e=>errors.push(e.message));
+  let releaseBootstrap!: () => void;
+  const bootstrap = new Promise<void>(resolve => { releaseBootstrap = resolve; });
+  let firstList = true;
+  await page.route('**/api/campaigns', async route => {
+    if (route.request().method() === 'GET' && firstList) { firstList = false; await bootstrap; }
+    await route.continue();
+  });
   await page.goto('/demo');
+  await expect(page.getByRole('button',{name:'Run release check'})).toBeDisabled();
+  releaseBootstrap();
+  await expect(page.getByRole('button',{name:'Run release check'})).toBeEnabled();
   await expect(page.getByRole('heading',{name:'A convincing voice. A verifiable decision.'})).toBeVisible();
   await page.getByRole('button',{name:'Run release check'}).click();
   await expect(page.locator('.studio-gate strong')).toHaveText('Rehearsal passed',{timeout:30000});

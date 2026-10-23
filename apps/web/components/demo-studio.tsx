@@ -29,6 +29,7 @@ export function DemoStudio() {
   const [agent, setAgent] = useState("");
   const [agents, setAgents] = useState<{id:string; name:string}[]>([]);
   const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<Run | null>(null);
   const [guide, setGuide] = useState(false);
@@ -37,7 +38,7 @@ export function DemoStudio() {
   useEffect(() => {
     let alive = true;
     void Promise.all([api<Campaign[]>("/campaigns"), api<{id:string;name:string}[]>("/agents"), api<{default_patch:string}>("/demo-config")]).then(([cs, as, config]) => {
-      if (!alive) return; setHistory(cs);setCampaign(cs[0] || null);setAgents(as);setPatch(config.default_patch);
+      if (!alive) return; setHistory(cs);setCampaign(cs[0] || null);setAgents(as);setPatch(config.default_patch);setReady(true);
     }).catch(e => setError(e.message));
     return () => { alive = false; };
   }, []);
@@ -92,7 +93,7 @@ export function DemoStudio() {
       <section className="studio-journey" aria-label="Demo storyline">{stories.map((s,i)=><article key={s.title}><span>0{i+1}</span><div><h3>{s.title}</h3><p>{s.text}</p></div>{i<3&&<ArrowRight size={17}/>}</article>)}</section>
       <section className="studio-panel">
         <div className="studio-panel-title"><div><div className="studio-eyebrow">THE RELEASE CHECK</div><h2>Safer. Still useful.</h2><p>Eight curated cases. Two languages. Baseline and hardened variants.</p></div><div className={`studio-mode ${campaign?.engine === "llm" ? "model" : ""}`}><FlaskConical size={15}/>{campaign?.engine === "llm" ? "LLM prompt evaluation · no phone call" : "Fixture rehearsal · no providers"}</div></div>
-        <div className="studio-controls"><label>Test mode<select value={engine} disabled={running||busy} onChange={e=>setEngine(e.target.value)}><option value="scripted">Rehearsal · free / offline</option><option value="llm">Prompt evaluation · model usage</option></select></label>{engine==="llm"&&<label>Prompt source<select value={agent} onChange={e=>setAgent(e.target.value)} disabled={running||busy}><option value="">Demo finance prompt</option>{agents.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}<div className="studio-start">{running ? <button className="studio-secondary" onClick={()=>void post<Campaign>(`/campaigns/${campaign.id}/cancel`).then(setCampaign).catch(e=>setError(e.message))}><Square size={14}/> Stop check</button>:<button className="studio-primary" disabled={busy} onClick={()=>void start()}>{busy?<LoaderCircle className="spin" size={17}/>:<Play size={16}/>}Run release check<ArrowRight size={16}/></button>}</div></div>
+        <div className="studio-controls"><label>Test mode<select value={engine} disabled={running||busy} onChange={e=>setEngine(e.target.value)}><option value="scripted">Rehearsal · free / offline</option><option value="llm">Prompt evaluation · model usage</option></select></label>{engine==="llm"&&<label>Prompt source<select value={agent} onChange={e=>setAgent(e.target.value)} disabled={running||busy}><option value="">Demo finance prompt</option>{agents.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>}<div className="studio-start">{running ? <button className="studio-secondary" onClick={()=>void post<Campaign>(`/campaigns/${campaign.id}/cancel`).then(setCampaign).catch(e=>setError(e.message))}><Square size={14}/> Stop check</button>:<button className="studio-primary" disabled={busy || !ready} onClick={()=>void start()}>{busy?<LoaderCircle className="spin" size={17}/>:<Play size={16}/>}Run release check<ArrowRight size={16}/></button>}</div></div>
         {engine==="llm"&&<p className="studio-cost">Runs 16 prompt conversations against a copied prompt with synthetic tools. Uses provider credits and may hit free-tier limits. The hosted Bolna agent is unchanged.</p>}
         {error&&<div role="alert" className="studio-error">{error}</div>}
         <div className="studio-scorecards"><article><span>BASELINE</span><strong>{campaign?passed("before"):"—"}<small>/ {campaign?completed("before"):8}</small></strong><p>Cases passing evaluated checks</p></article><article className="candidate"><span>WITH GUARDRAILS</span><strong>{campaign?passed("after"):"—"}<small>/ {campaign?completed("after"):8}</small></strong><p>Cases passing evaluated checks</p></article><article><span>HELPFULNESS CONTROL</span><strong>{campaign?useful:"—"}<small>/ {campaign?usefulTotal:4}</small></strong><p>Authorized inquiry / escalation completed</p></article><article className="studio-gate"><FileCheck2 size={24}/><strong>{!campaign?"Ready to test":running?`${campaign.completed_runs}/16 runs`:campaign.status!=="completed"?campaign.status:campaign.gate==="passed"?(campaign.engine==="scripted"?"Rehearsal passed":"Suite passed"):"Review required"}</strong><p>{campaign?.engine==="llm"?"Evidence for this test set only":"Fixture results are not a production safety score"}</p></article></div>

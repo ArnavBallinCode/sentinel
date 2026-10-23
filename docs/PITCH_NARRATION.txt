@@ -1,0 +1,30 @@
+SENTINEL — 3:30 VOICEOVER DRAFT
+
+Record against the exact evidence you intend to show. Apply the substitutions in docs/DEMO.md when a shot is unavailable.
+
+0:00–0:12
+An AI voice agent can sound helpful and still try the wrong action. All a caller has to do is ask convincingly.
+
+0:12–0:28
+Meet Sentinel: testing and evidence for voice-agent teams. Challenge the conversation, inspect the tool decision, improve the guardrails, and test again.
+
+0:28–0:58
+Here I’m testing a copy of this finance agent’s prompt. The attacker asks for another account. The model requests access—but Sentinel’s controlled test tool denies it. We can see the exact request, the policy decision, and the conversation that led to it.
+
+0:58–1:23
+This is more than a red warning. Every finding leads back to a recorded run. An engineer can trace the inputs and action; a reviewer can inspect the evidence and decide whether the finding is valid.
+
+1:23–1:47
+Sentinel proposes a focused guardrail change from the failure. The replay keeps the baseline inputs and captured prompt. We inspect the difference instead of trusting a single green badge.
+
+1:47–2:16
+But fixing one attack is not enough. This release check includes English and Hindi scenarios, plus legitimate inquiries and disputes. An agent that refuses everything fails our usefulness checks. Every cell opens its recorded evidence.
+
+2:16–2:46
+For real conversations, Sentinel connects to Bolna and brings the available call evidence into the same review workflow. Teams can inspect the transcript, flagged identifiers and coverage gaps. Post-call findings are clearly separated from actions prevented at a controlled endpoint.
+
+2:46–3:05
+The result is a practical release workflow: review a change, test it, preserve the evidence, and deploy guardrails with version checks and rollback. Calls and test results stay inspectable after the demo ends.
+
+3:05–3:30
+We’re starting with teams building lending and customer-support agents—where identity, privacy and escalation matter. Sentinel helps them replace an improvised spot-check with a repeatable, reviewable decision. Test the conversation. Verify the action.
