@@ -14,6 +14,7 @@ from .bolna import BolnaAdapter, ProviderError, normalize_execution
 from .providers import configured_providers, transcription_provider
 from .executor import launch, TASKS, TERMINAL, refresh
 from . import redteam
+from .results import metrics, comparison_reasons, digest, provenance
 
 
 @asynccontextmanager
@@ -34,7 +35,16 @@ async def lifespan(app):
                         "Server restarted. External calls will not be replayed automatically."
                     )
             store.put("run", run["id"], run)
+    for c in store.all_docs("campaign"):
+        if c["status"] == "running":
+            c["status"] = "interrupted"
+            store.put("campaign", c["id"], c)
     yield
+    from .campaigns import CAMPAIGNS
+    campaign_tasks = list(CAMPAIGNS.values())
+    for task in campaign_tasks:
+        task.cancel()
+    await asyncio.gather(*campaign_tasks, return_exceptions=True)
     for task in list(TASKS.values()):
         task.cancel()
     await asyncio.gather(*list(TASKS.values()), return_exceptions=True)
@@ -263,6 +273,7 @@ def runs():
         {
             **{k: v for k, v in r.items() if k not in ("nodes", "graph")},
             "name": r.get("graph", {}).get("name", r["workflow_id"]),
+            "verdict": metrics(r)["verdict"],
             "finding_count": len({
                 f["id"] for n in r.get("nodes", {}).values()
                 for f in (n.get("output") or {}).get("findings", [])
@@ -274,7 +285,8 @@ def runs():
 
 @app.get("/api/runs/{id}")
 def run(id: str):
-    return require("run", id)
+    r = require("run", id)
+    return {**r, "assessment": metrics(r)}
 
 
 @app.post("/api/runs/{id}/cancel")
@@ -332,7 +344,8 @@ async def stream(id: str, request: Request, after: int = 0):
 
 @app.get("/api/runs/{id}/export")
 def export(id: str):
-    return require("run", id)
+    r = require("run", id)
+    return {**r, "assessment": metrics(r)}
 
 
 @app.post("/api/runs/{id}/reviews")
@@ -372,34 +385,6 @@ def compare(before: str, after: str):
     a = require("run", before)
     b = require("run", after)
 
-    def metrics(r):
-        fs = {
-            f["id"]: f
-            for n in r["nodes"].values()
-            for f in n.get("output", {}).get("findings", [])
-        }
-        unsupported = list(
-            {
-                x
-                for n in r["nodes"].values()
-                for x in n.get("output", {}).get("unsupported", [])
-            }
-        )
-        evaluated = any("evaluated" in n.get("output", {}) for n in r["nodes"].values())
-        return {
-            "findings": list(fs.values()),
-            "unsupported": unsupported,
-            "evaluated": evaluated,
-            "passed": r["status"] == "completed"
-            and evaluated
-            and not fs
-            and not unsupported,
-            "duration_ms": round(
-                (r.get("ended_at", r["created_at"]) - r["created_at"]) * 1000
-            ),
-            "cost": None,
-        }
-
     am, bm = metrics(a), metrics(b)
     # Compare by policy: conversation turns (and therefore segment IDs) differ between LLM runs.
     ai = {f["policy_id"] for f in am["findings"]}
@@ -416,11 +401,8 @@ def compare(before: str, after: str):
         ],
         "same_scenario": a["request"]["scenario"] == b["request"]["scenario"]
         and a["request"]["seed"] == b["request"]["seed"],
-        "comparable": a["workflow_id"] == b["workflow_id"]
-        and a["mode"] == b["mode"]
-        and a["request"]["scenario"] == b["request"]["scenario"]
-        and a["request"]["seed"] == b["request"]["seed"]
-        and a["request"].get("attack_id") == b["request"].get("attack_id"),
+        "comparable": not comparison_reasons(a, b),
+        "comparison_reasons": comparison_reasons(a, b),
     }
 
 
@@ -459,11 +441,12 @@ async def bolna_recording(id: str):
     url = (raw.get("telephony_data") or {}).get("recording_url")
     if not url:
         raise HTTPException(404, "This call has no recording.")
-    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-        r = await client.get(url, headers={"Authorization": f"Bearer {os.environ['BOLNA_API_KEY']}"})
-    if r.status_code != 200:
-        raise HTTPException(502, "Recording could not be fetched from Bolna.")
-    return Response(r.content, media_type=r.headers.get("content-type", "audio/mpeg"), headers={"Cache-Control": "private, max-age=3600"})
+    from .recordings import fetch_recording
+    try:
+        content, media_type = await fetch_recording(url)
+    except ValueError as exc:
+        raise HTTPException(502, str(exc)) from None
+    return Response(content, media_type=media_type, headers={"Cache-Control": "private, no-store"})
 
 
 @app.get("/api/bolna/agents/{id}/executions")
@@ -754,30 +737,76 @@ async def redteam_harden(req: HardenRequest):
         raise HTTPException(422, "Harden needs a completed red-team run with findings.")
     output = agent["output"]
     node = next(n for n in run["graph"]["nodes"] if n["type"] == "bolna")
-    prompt, _ = await redteam.agent_prompt(
-        run["request"].get("agent_id") or node["data"].get("config", {}).get("agent_id"),
-        node["data"].get("config", {}).get("agent_prompt", ""),
-    )
+    snapshot = store.get("run_context", run["id"])
+    if not snapshot or run["status"] != "completed":
+        raise HTTPException(422, "Harden requires a completed LLM run with its original prompt snapshot.")
+    prompt = snapshot["prompt"]
     try:
-        return await redteam.harden(prompt, output.get("transcript", []), list(findings.values()), output.get("attack") or {})
+        patch = await redteam.harden(prompt, output.get("transcript", []), list(findings.values()), output.get("attack") or {})
+        return {**patch, "agent_id": run["request"].get("agent_id"), "expected_prompt_hash": digest(prompt), "run_id": run["id"]}
     except (ValueError, KeyError) as e:
         raise HTTPException(502, f"Hardening failed: {e}")
 
 
 class PushPromptRequest(BaseModel):
     patch: str = Field(min_length=10, max_length=8000)
+    expected_prompt_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 @app.post("/api/bolna/agents/{id}/guardrails")
 async def push_guardrails(id: str, req: PushPromptRequest):
-    """Append Sentinel's guardrail patch to the hosted Bolna agent's system prompt (creates a new agent version)."""
+    """Update a bounded guardrail section with an expected prompt hash and rollback backup."""
     if not re.fullmatch(r"[\w-]{1,100}", id):
         raise HTTPException(422, "Invalid agent ID")
     raw = await BolnaAdapter().agent(id)
     prompt = ((raw.get("agent_prompts") or {}).get("task_1") or {}).get("system_prompt") or ""
-    marker = "# SECURITY GUARDRAILS (added by Sentinel)"
-    base = prompt.split(marker)[0].rstrip()
-    updated = f"{base}\n\n{req.patch.strip()}"
+    if digest(prompt) != req.expected_prompt_hash:
+        raise HTTPException(409, "The hosted prompt changed since this test. Fetch and retest before publishing.")
+    from .prompt_updates import replace_guardrails
+    try:
+        updated = replace_guardrails(prompt, req.patch)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    deployment_id = str(uuid.uuid4())
+    store.insert("prompt_backup", deployment_id, {"agent_id": id, "prompt": prompt, "updated_hash": digest(updated)})
     await BolnaAdapter().request("PATCH", f"/v2/agent/{id}", {"agent_prompts": {"task_1": {"system_prompt": updated}}})
     store.delete("agent_prompt", id)
-    return {"agent_id": id, "updated": True, "prompt_chars": len(updated)}
+    return {"agent_id": id, "updated": True, "prompt_chars": len(updated), "deployment_id": deployment_id}
+
+
+class HardenReplay(BaseModel):
+    version: int = Field(ge=1)
+
+
+@app.post("/api/runs/{id}/replay", status_code=201)
+async def replay(id: str, req: HardenReplay):
+    baseline = require("run", id)
+    if baseline["status"] != "completed" or baseline["mode"] != "simulation":
+        raise HTTPException(422, "Only completed simulations can be replayed automatically.")
+    graph = require("version", f"{baseline['workflow_id']}:{req.version}")
+    a = {**baseline, "graph": graph}
+    # Ignore provenance here; the original private snapshot will be copied below.
+    if any("controls" in reason for reason in comparison_reasons(baseline, a)):
+        raise HTTPException(422, "Replay must preserve baseline controls except the guardrail treatment.")
+    request = {**baseline["request"], "version": req.version}
+    result = await start(RunRequest(**request))
+    snapshot = store.get("run_context", id)
+    if snapshot:
+        store.put("run_context", result["id"], snapshot)
+    return result
+
+
+@app.post("/api/bolna/deployments/{id}/rollback")
+async def rollback_prompt(id: str):
+    saved = require("prompt_backup", id)
+    raw = await BolnaAdapter().agent(saved["agent_id"])
+    prompt = ((raw.get("agent_prompts") or {}).get("task_1") or {}).get("system_prompt") or ""
+    if digest(prompt) != saved["updated_hash"]:
+        raise HTTPException(409, "The prompt has changed since deployment; rollback would overwrite newer edits.")
+    await BolnaAdapter().request("PATCH", f"/v2/agent/{saved['agent_id']}", {"agent_prompts": {"task_1": {"system_prompt": saved["prompt"]}}})
+    store.delete("agent_prompt", saved["agent_id"])
+    return {"restored": True, "agent_id": saved["agent_id"]}
+
+
+from .campaigns import router as campaign_router
+app.include_router(campaign_router)

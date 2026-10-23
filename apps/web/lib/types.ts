@@ -92,9 +92,10 @@ export type Run = {
   created_at: number;
   nodes: Record<string, NodeRecord>;
   graph: Graph;
-  request: { scenario: string; seed: number };
+  request: { scenario: string; seed: number; agent_id?: string; recording_id?: string; attack_id?: string };
+  assessment?: { verdict: string; passed: boolean; unsupported: string[] };
 };
-export type RunSummary = Omit<Run, "nodes" | "graph"> & { name: string; finding_count: number };
+export type RunSummary = Omit<Run, "nodes" | "graph"> & { name: string; finding_count: number; verdict?: string };
 export type Event = {
   seq: number;
   event: string;

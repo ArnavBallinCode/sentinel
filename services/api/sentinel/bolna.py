@@ -126,11 +126,14 @@ def normalize_execution(raw):
                     args = _json.loads(args)
                 except ValueError:
                     args = {}
+            if not isinstance(args, dict):
+                args = {}
             requests.append({
                 "tool": str(log.get("tool_name") or log.get("name") or log.get("tool") or "unknown_tool"),
                 "account_id": str((args or {}).get("account_id", "")),
                 "segment_id": None,
                 "provider_trace": True,
+                "provider_outcome": log.get("status") or "unknown",
             })
         if requests:
             result["tool_requests"] = requests

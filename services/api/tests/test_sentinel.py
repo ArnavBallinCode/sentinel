@@ -540,3 +540,198 @@ def test_bolna_execution_carries_recording_and_estimated_timing():
     assert out["transcript"][0]["timestamp_quality"] == "estimated"
     assert out["transcript"][-1]["end"] == 10
     assert "tool_requests" not in out
+
+
+def test_empty_coverage_is_inconclusive(client):
+    g = client.get('/api/workflows/adversarial').json()
+    for n in g['nodes']:
+        if n['type'] == 'policy':
+            n['data']['config'].update(identity=False, escalation=False, consent=False)
+    g = client.put('/api/workflows/adversarial', json=g).json()
+    r = start(client, version=g['version'], scenario='normal')
+    assert r['assessment']['verdict'] == 'inconclusive'
+    assert client.get('/api/runs').json()[0]['verdict'] == 'inconclusive'
+    assert not r['assessment']['passed']
+
+
+def test_provider_logs_never_create_preventive_decisions(client):
+    from sentinel.executor import handler
+    normalized = normalize_execution({'transcript':'assistant: Hello', 'tool_call_logs':[
+        {'name':'get_account_status','arguments':{'account_id':'SYN-002'},'status':'success'}]})
+    result = asyncio.run(handler({'id':'auth', 'type':'tool_auth','data':{'config':{}}}, normalized, {'id':'audit', 'mode':'audit'}))
+    assert result['enforcement'] == 'post_call_observation'
+    assert 'decision' not in result['tool_requests'][0]
+    assert result['tool_requests'][0]['provider_outcome'] == 'success'
+    assert result['unsupported']
+
+
+def test_compare_rejects_different_agents_and_recordings(client):
+    a = start(client, scenario='normal', agent_id='one')
+    b = copy.deepcopy(a)
+    b['id']='another-run'
+    b['request'].update(agent_id='two', recording_id='another-recording')
+    store.insert('run', b['id'], b)
+    result=client.get(f'/api/compare?before={a["id"]}&after={b["id"]}').json()
+    assert not result['comparable']
+    assert any('agent_id' in reason for reason in result['comparison_reasons'])
+
+
+def test_replay_preserves_inputs_and_rejects_changed_controls(client):
+    a=start(client, scenario='unauthorized', seed=17, agent_id='pinned-target')
+    g=client.get('/api/workflows/adversarial').json()
+    for n in g['nodes']:
+        if n['type']=='bolna': n['data']['config']['safe_agent']=True
+    g=client.put('/api/workflows/adversarial',json=g).json()
+    response=client.post(f'/api/runs/{a["id"]}/replay',json={'version':g['version']})
+    assert response.status_code==201,response.text
+    b=finished(client,response.json()['id'])
+    assert b['request']['scenario']=='unauthorized'
+    assert b['request']['seed']==17
+    assert b['request']['agent_id']=='pinned-target'
+    assert client.get(f'/api/compare?before={a["id"]}&after={b["id"]}').json()['comparable']
+    for n in g['nodes']:
+        if n['type']=='policy': n['data']['config']['identity']=False
+    g=client.put('/api/workflows/adversarial',json=g).json()
+    assert client.post(f'/api/runs/{a["id"]}/replay',json={'version':g['version']}).status_code==422
+
+
+@pytest.mark.parametrize('success,violations', [('false', []),(True,[{'segment_id':'invented','policy_id':'data_disclosure'}])])
+def test_invalid_judge_result_never_passes(monkeypatch,success,violations):
+    from sentinel import redteam
+    async def fake(*args,**kwargs):return {'content':json.dumps({'attack_succeeded':success,'violations':violations})}
+    monkeypatch.setattr(redteam,'llm',fake)
+    fs,verdict=asyncio.run(redteam.judge([{'id':'s1','speaker':'agent','text':'Hello'}],{},[]))
+    assert not fs
+    assert verdict['status']=='inconclusive'
+    assert not verdict['attack_succeeded']
+
+
+def test_recording_fetch_never_forwards_bolna_key(monkeypatch):
+    from sentinel import recordings
+    seen=[]
+    async def validate(url):pass
+    def respond(req):
+        seen.append(req)
+        return httpx.Response(200,headers={'content-type':'audio/wav'},content=b'audio')
+    original=httpx.AsyncClient
+    monkeypatch.setattr(recordings,'validate_url',validate)
+    monkeypatch.setattr(recordings.httpx,'AsyncClient',lambda **kw:original(**kw,transport=httpx.MockTransport(respond)))
+    monkeypatch.setenv('BOLNA_API_KEY','sentinel-test-secret')
+    data,kind=asyncio.run(recordings.fetch_recording('https://storage.example/test.wav'))
+    assert data==b'audio'
+    assert 'authorization' not in seen[0].headers
+
+
+@pytest.mark.parametrize('url',['http://public.example/audio','https://user:pass@public.example/audio','https://public.example:8000/audio'])
+def test_recording_rejects_unsafe_urls(url):
+    from sentinel.recordings import validate_url
+    with pytest.raises(ValueError):asyncio.run(validate_url(url))
+
+
+def test_guardrail_patch_preserves_user_sections():
+    from sentinel.prompt_updates import replace_guardrails,START,END
+    prompt=f'Original\n{START}\nold\n{END}\nImportant user instructions after patch'
+    updated=replace_guardrails(prompt,'new guardrails')
+    assert updated.endswith('Important user instructions after patch')
+    assert 'old' not in updated
+    legacy='Original\n# SECURITY GUARDRAILS (added by Sentinel)\nlegacy\nImportant tail'
+    assert replace_guardrails(legacy,'new').startswith(legacy)
+
+
+def wait_campaign(client,id):
+    for _ in range(200):
+        c=client.get(f'/api/campaigns/{id}').json()
+        if c['status']!='running':return c
+        time.sleep(.03)
+    raise AssertionError('Campaign never completed')
+
+
+def test_release_campaign_is_persisted_bilingual_and_traceable(client):
+    response=client.post('/api/campaigns',json={'engine':'scripted'})
+    assert response.status_code==201,response.text
+    c=wait_campaign(client,response.json()['id'])
+    assert c['status']=='completed',c
+    assert c['completed_runs']==16
+    assert c['gate']=='passed'
+    assert len(c['cases'])==8
+    assert {r['language'] for r in c['cases']}=={'en','hi'}
+    assert sum(r['before']['verdict']=='passed' for r in c['cases'])==2
+    assert sum(r['after']['verdict']=='passed' for r in c['cases'])==8
+    assert sum(r['after']['useful_task_completed'] is True for r in c['cases'])==4
+    assert 'snapshot' not in c
+    for case in c['cases']:
+        for side in ('before','after'):
+            r=client.get('/api/runs/'+case[side]['run_id']).json()
+            assert r['status']=='completed'
+            assert r['nodes']
+
+
+def test_release_check_rejects_refuse_everything(client,monkeypatch):
+    from sentinel import executor
+    original=executor.simulate
+    def refusal(ctx,safe=False):
+        result=original(ctx,safe)
+        if safe and ctx['scenario']=='normal':
+            result['tool_requests']=[]
+            result['transcript'][-1]['text']='I cannot help with anything.'
+        return result
+    monkeypatch.setattr(executor,'simulate',refusal)
+    c=wait_campaign(client,client.post('/api/campaigns',json={'engine':'scripted'}).json()['id'])
+    assert c['gate']=='needs_review'
+    assert all(r['after']['verdict']=='failed' for r in c['cases'] if r['scenario']=='normal')
+
+
+def test_prompt_deployment_checks_version_and_can_rollback(client, monkeypatch):
+    from sentinel.results import digest
+    original='Original agent instructions. Preserve this.'
+    current={'prompt':original}
+    async def agent(self,id):
+        return {'agent_prompts':{'task_1':{'system_prompt':current['prompt']}}}
+    async def request(self,method,path,payload=None):
+        current['prompt']=payload['agent_prompts']['task_1']['system_prompt']
+        return {'updated':True}
+    monkeypatch.setattr(BolnaAdapter,'agent',agent)
+    monkeypatch.setattr(BolnaAdapter,'request',request)
+    url='/api/bolna/agents/test-agent/guardrails'
+    bad=client.post(url,json={'patch':'Useful new guardrails','expected_prompt_hash':digest('stale')})
+    assert bad.status_code==409
+    assert current['prompt']==original
+    good=client.post(url,json={'patch':'Useful new guardrails','expected_prompt_hash':digest(original)})
+    assert good.status_code==200,good.text
+    assert original in current['prompt']
+    assert 'Useful new guardrails' in current['prompt']
+    deployed=current['prompt']
+    current['prompt']+='\nNewer unrelated edit'
+    rollback='/api/bolna/deployments/'+good.json()['deployment_id']+'/rollback'
+    assert client.post(rollback).status_code==409
+    current['prompt']=deployed
+    assert client.post(rollback).status_code==200
+    assert current['prompt']==original
+
+
+def test_llm_replay_uses_private_original_prompt_snapshot(client,monkeypatch):
+    from sentinel import redteam
+    monkeypatch.setenv('GROQ_API_KEY','test-placeholder')
+    prompts=[]
+    async def fetch(*args):return ('original private prompt','test source')
+    async def talk(attack,prompt,**kwargs):
+        prompts.append(prompt)
+        return ([{'id':'s1','speaker':'caller','text':'Hello','start':0,'end':1},
+                 {'id':'s2','speaker':'agent','text':'Hello','start':1,'end':2}],[])
+    async def judge(*args,**kwargs):return ([],{'attack_succeeded':False,'status':'evaluated','summary':'No violation'})
+    monkeypatch.setattr(redteam,'agent_prompt',fetch)
+    monkeypatch.setattr(redteam,'converse',talk)
+    monkeypatch.setattr(redteam,'judge',judge)
+    a=start(client,scenario='normal')
+    async def changed(*args):raise AssertionError('Replay fetched a changed hosted prompt')
+    monkeypatch.setattr(redteam,'agent_prompt',changed)
+    g=client.get('/api/workflows/adversarial').json()
+    for n in g['nodes']:
+        if n['type']=='bolna':n['data']['config'].update(safe_agent=True,prompt_patch='Candidate section')
+    g=client.put('/api/workflows/adversarial',json=g).json()
+    response=client.post(f'/api/runs/{a["id"]}/replay',json={'version':g['version']})
+    assert response.status_code==201,response.text
+    b=finished(client,response.json()['id'])
+    assert b['status']=='completed'
+    assert prompts==['original private prompt','original private prompt\n\nCandidate section']
+    assert 'original private prompt' not in client.get(f'/api/runs/{b["id"]}/export').text

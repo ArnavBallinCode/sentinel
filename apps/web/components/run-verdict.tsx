@@ -24,13 +24,15 @@ export type Comparison = {
   changed_nodes: string[];
   same_scenario: boolean;
   comparable: boolean;
+  comparison_reasons?: string[];
 };
 
-export type HardenInfo = { patch: string; changes: string[] };
+export type HardenInfo = { patch: string; changes: string[]; agent_id?: string; expected_prompt_hash?: string; run_id?: string };
 
 type ToolRequest = {
   tool: string;
   account_id?: string;
+  provider_trace?: boolean;
   segment_id?: string;
   decision?: { allowed: boolean; outcome: string; reason: string };
 };
@@ -49,7 +51,7 @@ export function summarize(run: Run) {
       ?.tool_requests as ToolRequest[] | undefined) ||
     (outputs.findLast((o) => Array.isArray(o.tool_requests))?.tool_requests as ToolRequest[] | undefined) ||
     [];
-  const blocked = tools.filter((t) => t.decision && !t.decision.allowed);
+  const blocked = tools.filter((t) => !t.provider_trace && t.decision && !t.decision.allowed);
   const evaluated = (outputs.findLast((o) => Array.isArray(o.evaluated))?.evaluated as string[] | undefined) || [];
   const unsupported = [...new Set(outputs.flatMap((o) => o.unsupported || []))];
   const coverage = [...new Set(outputs.flatMap((o) => o.coverage || []))];
@@ -59,7 +61,7 @@ export function summarize(run: Run) {
     | undefined;
   const language = (outputs.find((o) => o.language)?.language as string | undefined) || "en";
   const behavior = outputs.find((o) => o.agent_behavior)?.agent_behavior as string | undefined;
-  const judge = outputs.findLast((o) => o.judge)?.judge as { attack_succeeded: boolean; summary: string } | undefined;
+  const judge = outputs.findLast((o) => o.judge)?.judge as { attack_succeeded: boolean; summary: string; status?: string } | undefined;
   const engine = outputs.findLast((o) => o.engine)?.engine as string | undefined;
   const agentSource = outputs.findLast((o) => o.agent_source)?.agent_source as string | undefined;
   const records = Object.values(run.nodes);
@@ -117,13 +119,18 @@ export function RunVerdict({
     tone = "danger";
     Icon = ShieldX;
     const target = s.blocked[0];
-    title = `Agent was manipulated — Sentinel blocked the leak`;
-    detail = `The agent called ${target.tool}(${target.account_id || ""}) for a caller verified as SYN-001. Sentinel's tool layer denied it: “${target.decision?.reason}”`;
+    title = "Unauthorized tool request blocked in test";
+    detail = `The agent requested ${target.tool}(${target.account_id || ""}). The synthetic tool boundary denied access: “${target.decision?.reason}” No real customer account was accessed.`;
   } else if (s.findings.length) {
     tone = "warning";
     Icon = ShieldAlert;
     title = `${s.findings.length} issue${s.findings.length > 1 ? "s" : ""} need review`;
     detail = s.findings[0].explanation;
+  } else if (run.assessment?.verdict === "inconclusive" || !s.evaluated.length || s.unsupported.length || s.judge?.status === "inconclusive") {
+    tone = "warning";
+    Icon = ShieldAlert;
+    title = "Inconclusive — coverage is incomplete";
+    detail = s.unsupported[0] || "No validated policy result is available. Inspect coverage before making a release decision.";
   } else {
     tone = "success";
     Icon = ShieldCheck;
@@ -140,7 +147,7 @@ export function RunVerdict({
         </span>
         <div className="verdict-copy">
           <span className="verdict-eyebrow">
-            {run.mode === "simulation" ? (s.engine === "llm" ? "Live LLM red-team" : "Scripted attack") : run.mode === "audit" ? "Call audit" : "Live Bolna call"}
+            {run.mode === "simulation" ? (s.engine === "llm" ? "LLM prompt test · no phone call" : "Scripted attack") : run.mode === "audit" ? "Call audit" : "Live Bolna call"}
             {s.agentSource ? ` · ${s.agentSource}` : ""}
             {s.scenario ? ` · ${s.scenario.name}` : ""} · v{run.version}
           </span>
@@ -160,7 +167,7 @@ export function RunVerdict({
               )}
               {s.transcript.length > 0 && (
                 <button onClick={onShowConversation}>
-                  <Volume2 size={15} /> Hear the call
+                  <Volume2 size={15} /> {s.audio ? "Play original recording" : "Inspect conversation"}
                 </button>
               )}
               <a href={`/api/runs/${run.id}/export`} target="_blank" rel="noreferrer">
@@ -203,7 +210,7 @@ function BeforeAfter({ comparison, hardenInfo, onPush }: { comparison: Compariso
     a = comparison.after.findings.length;
   return (
     <div className="before-after">
-      <span className="verdict-eyebrow">Regression proof · same scenario, same seed</span>
+      <span className="verdict-eyebrow">{comparison.comparable ? "Controlled replay · guardrail treatment changed" : "Comparison · controls differ"}</span>
       <div className="ba-row">
         <div className="ba-card bad">
           <small>Before</small>
@@ -211,7 +218,7 @@ function BeforeAfter({ comparison, hardenInfo, onPush }: { comparison: Compariso
           <span>finding{b === 1 ? "" : "s"}</span>
         </div>
         <ArrowRight size={20} />
-        <div className={`ba-card ${a ? "bad" : "good"}`}>
+        <div className={`ba-card ${comparison.after.passed ? "good" : "bad"}`}>
           <small>After fix</small>
           <strong>{a}</strong>
           <span>finding{a === 1 ? "" : "s"}</span>
@@ -227,7 +234,9 @@ function BeforeAfter({ comparison, hardenInfo, onPush }: { comparison: Compariso
         )}
         {comparison.new.length ? ` · ${comparison.new.length} new` : ""}
         {!comparison.comparable && " · not a controlled comparison"}
+        {!comparison.after.passed && !a && " · insufficient coverage or execution error"}
       </p>
+      {!!comparison.comparison_reasons?.length && <p>{comparison.comparison_reasons.join(" ")}</p>}
       {hardenInfo && hardenInfo.changes.length > 0 && (
         <details className="patch-changes">
           <summary>What Sentinel added to the prompt ({hardenInfo.changes.length} rules)</summary>
@@ -235,7 +244,7 @@ function BeforeAfter({ comparison, hardenInfo, onPush }: { comparison: Compariso
           <pre>{hardenInfo.patch}</pre>
         </details>
       )}
-      {onPush && (
+      {onPush && comparison.comparable && comparison.after.passed && (
         <button className="push-bolna" onClick={onPush}>
           <Upload size={13} /> Push guardrails to Bolna agent
         </button>
@@ -304,11 +313,11 @@ export function Conversation({ run, seek }: { run: Run; seek: number | null }) {
       <div className="conversation-bar">
         <button className={`play-call ${playing ? "is-playing" : ""}`} onClick={playing ? stop : play} disabled={!s.transcript.length}>
           {playing ? <Square size={13} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-          {playing ? (s.audio ? "Pause" : "Stop") : s.audio ? "Play real call" : "Play call"}
+          {playing ? (s.audio ? "Pause" : "Stop") : s.audio ? "Play original recording" : "Read transcript aloud"}
         </button>
         <span className="conversation-meta">
           {s.audio
-            ? "Original Bolna call recording · turn timing estimated"
+            ? `Original recording · ${s.transcript.some(t => t.timestamp_quality === "estimated") ? "estimated timing" : "inspect timestamp quality"} · audio is not redacted`
             : run.mode === "simulation"
               ? "Synthesized voices read the simulated transcript"
               : "Text-to-speech replay of the provider transcript"}
@@ -351,7 +360,7 @@ export function Conversation({ run, seek }: { run: Run; seek: number | null }) {
                 <div className={`bubble ${flagged.length ? "flagged" : ""} ${active(seg) ? "speaking" : ""}`}>
                   <span className="bubble-who">
                     {caller ? "Caller" : "Agent"}
-                    {seg.start !== null && <em>{seg.start.toFixed(1)}s</em>}
+                    {seg.start !== null && <em>{seg.timestamp_quality === "estimated" ? "≈ " : ""}{seg.start.toFixed(1)}s · {seg.timestamp_quality}</em>}
                   </span>
                   <p>{seg.text}</p>
                 </div>
@@ -361,7 +370,7 @@ export function Conversation({ run, seek }: { run: Run; seek: number | null }) {
                     <code>
                       {t.tool}({t.account_id || ""})
                     </code>
-                    <b>{t.decision ? (t.decision.allowed ? "ALLOWED" : "BLOCKED") : "REQUESTED"}</b>
+                    <b>{t.provider_trace ? "PROVIDER LOG" : t.decision ? (t.decision.allowed ? "ALLOWED IN TEST" : "BLOCKED IN TEST") : "REQUESTED"}</b>
                     {t.decision && !t.decision.allowed && <span>{t.decision.reason}</span>}
                   </div>
                 ))}

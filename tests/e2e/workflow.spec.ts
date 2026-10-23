@@ -17,7 +17,7 @@ test("graph execution, evidence, refusal fix, regression and reload", async ({
   await page.getByRole("radio", { name: "Baseline" }).click();
   await page.getByRole("button", { name: "Run test", exact: true }).click();
   await expect(page.locator(".verdict-actions")).toBeVisible({timeout: 15000});
-  await expect(page.locator(".verdict h3")).toContainText("blocked the leak");
+  await expect(page.locator(".verdict h3")).toContainText("Unauthorized tool request blocked in test");
   await page.getByRole("button", {name: "Expand Manual trigger"}).click();
   const detail = page.getByRole("dialog", {name: "Expanded node details"});
   for (let i = 0; i < 9; i++) {
@@ -146,4 +146,37 @@ test("overview navigation, theme, and compact screen", async ({ page }) => {
   await page.locator(".workbench-nav").getByRole("button", {name: "Overview", exact: true}).click();
   await expect(page.getByRole("heading", {name: /Break your voice agent/})).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+});
+
+test("demo studio executes a bilingual release check and exposes recorded evidence", async ({page}) => {
+  test.setTimeout(60000);
+  const errors: string[]=[];page.on('pageerror', e=>errors.push(e.message));
+  await page.goto('/demo');
+  await expect(page.getByRole('heading',{name:'A convincing voice. A verifiable decision.'})).toBeVisible();
+  await page.getByRole('button',{name:'Run release check'}).click();
+  await expect(page.locator('.studio-gate strong')).toHaveText('Rehearsal passed',{timeout:30000});
+  await expect(page.locator('.studio-table tbody tr')).toHaveCount(8);
+  await expect(page.locator('.studio-scorecards .candidate strong')).toHaveText('8/ 8');
+  await page.locator('.studio-table tbody tr').first().getByRole('button',{name:'Inspect Needs review evidence'}).click();
+  const dialog=page.getByRole('dialog',{name:'Release check evidence'});
+  await expect(dialog).toContainText('BLOCKED IN TEST');
+  await expect(dialog.getByRole('link',{name:'Open workflow trace'})).toHaveAttribute('href',/\/?run=/);
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await page.reload();
+  await expect(page.locator('.studio-gate strong')).toHaveText('Rehearsal passed');
+  expect(errors).toEqual([]);
+});
+
+test("disabled policy coverage never renders a green verdict", async ({page}) => {
+  const graph=await(await page.request.get('/api/workflows/adversarial')).json();
+  for(const node of graph.nodes){
+    if(node.type==='policy')Object.assign(node.data.config,{identity:false,escalation:false,consent:false});
+    if(node.type==='bolna')Object.assign(node.data.config,{engine:'scripted',safe_agent:true});
+  }
+  const saved=await(await page.request.put('/api/workflows/adversarial',{data:graph})).json();
+  const run=await(await page.request.post('/api/runs',{data:{workflow_id:'adversarial',version:saved.version,scenario:'normal'}})).json();
+  await page.goto('/?run='+run.id);
+  await expect(page.locator('.verdict h3')).toHaveText('Inconclusive — coverage is incomplete',{timeout:15000});
+  await expect(page.locator('.verdict-hero')).not.toHaveClass(/tone-success/);
 });

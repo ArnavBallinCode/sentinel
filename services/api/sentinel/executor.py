@@ -7,6 +7,7 @@ from .governance import SCENARIOS, simulate, evaluate, controlled_tool, redact, 
 from .bolna import BolnaAdapter, normalize_execution
 from .providers import semantic_provider, configured_providers
 from . import redteam
+from .results import digest
 
 TASKS = {}
 TERMINAL = {"completed", "failed", "cancelled", "interrupted"}
@@ -48,6 +49,7 @@ async def handler(node, inputs, run):
             **{k: v for k, v in artifact.items() if k != "audio_file"},
             "findings": [],
             "mode": "audit",
+            "provenance": {"engine": "audit", "recording_hash": digest(artifact)},
         }
     if t == "scenario":
         attack_id = run["request"].get("attack_id")
@@ -75,10 +77,21 @@ async def handler(node, inputs, run):
                 result = simulate(inputs, cfg["safe_agent"])
                 if cfg["engine"] != "scripted":
                     result["coverage"] = result["coverage"] + ["No LLM provider configured; the scripted fixture ran instead of a live red-team conversation."]
-                return {**result, "engine": "scripted"}
-            prompt, source = await redteam.agent_prompt(
-                run["request"].get("agent_id") or cfg["agent_id"], cfg["agent_prompt"]
-            )
+                if inputs.get("attack", {}).get("generated"):
+                    raise ValueError("Generated attacks require an LLM provider; scripted fixtures cannot execute them.")
+                return {**result, "engine": "scripted", "provenance": {"engine": "scripted", "fixture_version": 1,
+                        "language": inputs.get("language"), "scenario": inputs["scenario"], "seed": run["request"]["seed"]}}
+            snapshot = store.get("run_context", run["id"])
+            models = redteam.model_config()
+            if snapshot:
+                if snapshot["models"] != models:
+                    raise ValueError("Model configuration changed since the baseline. Restore it before a controlled replay.")
+                prompt, source = snapshot["prompt"], snapshot["source"]
+            else:
+                prompt, source = await redteam.agent_prompt(
+                    run["request"].get("agent_id") or cfg["agent_id"], cfg["agent_prompt"]
+                )
+                store.put("run_context", run["id"], {"prompt": prompt, "source": source, "models": models})
             patch = (cfg["prompt_patch"] or redteam.DEFAULT_PATCH) if cfg["safe_agent"] else ""
             effective = prompt + ("\n\n" + patch if patch else "")
             attack = inputs.get("attack") or {**redteam.BUILTIN_ATTACKS["injection"], "opening": inputs.get("caller_prompt", "")}
@@ -100,6 +113,10 @@ async def handler(node, inputs, run):
                 "agent_source": source,
                 "agent_behavior": "hardened" if patch else "baseline",
                 "prompt_patch_applied": bool(patch),
+                "provenance": {"engine": "llm", "models": models, "base_prompt_hash": digest(prompt),
+                    "effective_prompt_hash": digest(effective), "patch_hash": digest(patch),
+                    "tools_hash": digest(redteam.TOOLS), "attack_hash": digest(attack),
+                    "turns": cfg["turns"], "seed": run["request"]["seed"]},
                 "trusted_subject": redteam.TRUSTED_SUBJECT,
                 "trusted_verified": True,
             }
@@ -157,6 +174,10 @@ async def handler(node, inputs, run):
                     "Provider tool traces unavailable. Configure Sentinel-owned tool endpoints for runtime enforcement."
                 ],
             }
+        if any(r.get("provider_trace") for r in inputs["tool_requests"]):
+            return {**inputs, "unsupported": inputs.get("unsupported", []) + [
+                "Imported provider tool logs are observational. No Sentinel enforcement receipt or trusted caller identity was supplied."
+            ], "enforcement": "post_call_observation"}
         reqs = []
         for i, r in enumerate(inputs["tool_requests"]):
             decision = controlled_tool(
@@ -164,18 +185,21 @@ async def handler(node, inputs, run):
                 inputs.get("trusted_subject"),
                 inputs.get("trusted_verified", False),
             )
-            reqs.append({**r, "decision": decision})
+            reqs.append({**r, "decision": {**decision, "provenance": "synthetic_tool_boundary"}})
         return {**inputs, "tool_requests": reqs}
     if t == "policy":
         result = evaluate(inputs, cfg)
         live_call = run["mode"] in ("live", "audit") and configured_providers()
         if (inputs.get("engine") == "llm" or live_call) and inputs.get("transcript"):
             attack = inputs.get("attack") or {"name": "Real call", "goal": "Any attempt by the caller to manipulate the agent, extract data, or make it break policy"}
-            judged, verdict = await redteam.judge(inputs["transcript"], attack, inputs.get("tool_requests", []))
+            judged, verdict = await redteam.judge(redact(inputs["transcript"]), attack, redact(inputs.get("tool_requests", [])),
+                                                     trusted_subject=inputs.get("trusted_subject") if inputs.get("trusted_verified") else None)
             known = {f["id"] for f in result["findings"]}
             result["findings"] = result["findings"] + [f for f in judged if f["id"] not in known]
             result["evaluated"] = result["evaluated"] + ["llm_judge"]
             result["judge"] = verdict
+            if verdict.get("status") == "inconclusive":
+                result["unsupported"].append("Judge output could not be validated.")
             result["passed"] = not result["findings"] and not result["unsupported"]
         return result
     if t == "pii":

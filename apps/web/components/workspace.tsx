@@ -123,6 +123,7 @@ function Workspace() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [attacks, setAttacks] = useState<Attack[]>([]);
   const [target, setTarget] = useState("");
+  const [deploymentId, setDeploymentId] = useState<string | null>(null);
   const [hardenInfo, setHardenInfo] = useState<HardenInfo | null>(null);
   const [baselineRunId, setBaselineRunId] = useState<string | null>(null);
   const [fixComparison, setFixComparison] = useState<Comparison | null>(null);
@@ -171,7 +172,12 @@ function Workspace() {
       setConnectedAgents(agents);
       if (agents[0]) { setAgentId(agents[0].id); setAgentName(agents[0].name); }
       if (recs[0]) setRecordingId(recs[0].id);
-      load(gs.find((g) => g.id === "adversarial") || gs[0]);
+      const linkedRun = new URLSearchParams(window.location.search).get("run");
+      if (linkedRun) {
+        const full = await api<Run>(`/runs/${encodeURIComponent(linkedRun)}`);
+        load(full.graph); setRun(full); setMode(full.mode); setHome(false);
+        setTarget(full.request.agent_id || ""); setScenario(full.request.scenario);
+      } else load(gs.find((g) => g.id === "adversarial") || gs[0]);
     });
   }, [act, load]);
   useEffect(() => {
@@ -418,27 +424,27 @@ function Workspace() {
   const fixAndRetest = () =>
     void act(async () => {
       if (!run) return;
-      const failing = run.id;
-      const llmRun = Object.values(run.nodes).some((n) => n.output?.engine === "llm");
-      if (llmRun) {
-        message("Sentinel is writing a guardrail patch from the failing transcript…");
-        const info = await post<HardenInfo>("/redteam/harden", { run_id: failing });
-        setHardenInfo(info);
-        const g = useEditor.getState().graph!;
-        edit({
-          nodes: g.nodes.map((n) =>
-            n.type === "bolna" ? { ...n, data: { ...n.data, config: { ...n.data.config, safe_agent: true, prompt_patch: info.patch } } } : n,
-          ),
-        });
-      } else setHardened(true);
-      baselineRef.current = true;
-      try {
-        await runTest();
-      } finally {
-        baselineRef.current = false;
-      }
-      setBaselineRunId(failing);
-      message("Patch applied · new version saved · replaying the same attack");
+      const baseline = run;
+      const llmRun = Object.values(baseline.nodes).some(n => n.output?.engine === "llm");
+      const info = llmRun ? await post<HardenInfo>("/redteam/harden", { run_id: baseline.id }) : null;
+      setHardenInfo(info);
+      const latest = await api<Graph>(`/workflows/${baseline.workflow_id}`);
+      const candidate = {
+        ...baseline.graph, version: latest.version,
+        nodes: baseline.graph.nodes.map(n => n.type === "bolna"
+          ? { ...n, data: { ...n.data, config: { ...n.data.config, safe_agent: true, ...(info ? { prompt_patch: info.patch } : {}) } } } : n),
+      };
+      const saved = await api<Graph>(`/workflows/${baseline.workflow_id}`, { method: "PUT", body: JSON.stringify(candidate) });
+      load(saved);
+      const replay = await post<Run>(`/runs/${baseline.id}/replay`, { version: saved.version });
+      setTarget(baseline.request.agent_id || "");
+      setScenario(baseline.request.attack_id ? `gen:${baseline.request.attack_id}` : baseline.request.scenario);
+      setMode(baseline.mode);
+      setFixComparison(null);
+      setRun(replay);
+      setBaselineRunId(baseline.id);
+      setRuns(await api<RunSummary[]>("/runs"));
+      message("Replaying the baseline inputs with the guardrail treatment changed");
     });
   const generateAttacks = () =>
     void act(async () => {
@@ -451,10 +457,11 @@ function Workspace() {
     });
   const pushGuardrails = () =>
     void act(async () => {
-      if (!target || !hardenInfo) return;
-      const name = availableAgentName(target);
-      if (!window.confirm(`Append Sentinel's guardrail patch to the live Bolna agent "${name}"? This creates a new agent version in your Bolna account.`)) return;
-      await post(`/bolna/agents/${encodeURIComponent(target)}/guardrails`, { patch: hardenInfo.patch });
+      if (!hardenInfo?.agent_id || !hardenInfo.expected_prompt_hash) return;
+      const name = availableAgentName(hardenInfo.agent_id);
+      if (!window.confirm(`Append Sentinel's guardrail patch to the live Bolna agent "${name}"? Sentinel saves the previous prompt for guarded rollback.`)) return;
+      const receipt = await post<{ deployment_id: string }>(`/bolna/agents/${encodeURIComponent(hardenInfo.agent_id)}/guardrails`, { patch: hardenInfo.patch, expected_prompt_hash: hardenInfo.expected_prompt_hash });
+      setDeploymentId(receipt.deployment_id);
       message(`Guardrails pushed to ${name} on Bolna`);
     });
   useEffect(() => {
@@ -598,6 +605,7 @@ function Workspace() {
     const requests = record?.output?.tool_requests as { decision?: { allowed: boolean } }[] | undefined;
     if (n.type === "tool_auth" && Array.isArray(requests) && record?.status !== "skipped") {
       const denied = requests.filter((t) => t.decision && !t.decision.allowed).length;
+      if (requests.some(t => (t as {provider_trace?: boolean}).provider_trace)) return "Provider logs · observed after call";
       return requests.length ? `${denied ? `⛔ ${denied} blocked` : "✓ all allowed"} · ${requests.length} tool call${requests.length > 1 ? "s" : ""}` : "No tool calls attempted";
     }
     if (n.type === "bolna") return mode === "simulation" ? `${target ? availableAgentName(target) : "Demo agent"} · ${n.data.config.safe_agent ? "hardened prompt" : "original prompt"}` : agentName || "Choose an agent in Connections";
@@ -929,6 +937,11 @@ function Workspace() {
             reviews={reviews}
           />
         </div>
+        {deploymentId && <div className="deployment-receipt">Guardrail deployment saved · {deploymentId.slice(0, 8)} <button onClick={() => void act(async () => {
+          if (!window.confirm("Restore the prompt saved immediately before this deployment?")) return;
+          await post(`/bolna/deployments/${deploymentId}/rollback`);
+          setDeploymentId(null); message("Previous hosted prompt restored");
+        })}>Roll back prompt</button></div>}
         <ExecutionConsole
           run={run}
           events={events}
@@ -939,7 +952,7 @@ function Workspace() {
           canFix={Boolean(agentNode) && !hardened && mode === "simulation"}
           onFix={fixAndRetest}
           hardenInfo={hardenInfo}
-          onPush={target && hardenInfo ? pushGuardrails : undefined}
+          onPush={hardenInfo?.agent_id ? pushGuardrails : undefined}
           onRefresh={() =>
             void act(async () => {
               await post(`/runs/${run!.id}/refresh`);
@@ -1030,7 +1043,7 @@ function Workspace() {
                     </select>
                   </label>
                   <div className="tip">
-                    Deterministic seed: 42. Reruns use the same scenario. Live
+                    Seed: 42. LLM outputs may vary between runs. Live
                     phone calls require an opted-in participant; no autonomous
                     audio caller is connected.
                   </div>

@@ -1,36 +1,37 @@
-# Verification — 22 October 2026
+# Verification — 23 October 2026
 
-## Automated checks passed
+## Current checks
 
-- `uv run --directory services/api pytest -q`: **24 passed**. One upstream Starlette deprecation warning recommends a future TestClient transport migration from HTTPX; no test failures.
-- `npm run typecheck`: passed.
-- `npm run build`: production Next.js build passed.
-- `docker compose config --quiet`: passed.
-- `docker compose build`: both `sentinel-api` and `sentinel-web` built successfully.
-- Isolated Docker containers: web returned HTTP 200; frontend rewrite reached the API; baseline graph executed; saved refusal configuration produced a second immutable version; rerun passed and comparison resolved `identity-s1`.
-- Backend restart: the original baseline run remained completed at version 1, with all nine node records preserved.
+- Backend suite: **46 passed**, including coverage failures, provider-log provenance, replay identity, comparison controls, recording credential isolation, guardrail-section preservation, bilingual release checks and refusal-only behavior.
+- Browser suite: **5 passed** against an isolated credential-free backend. Covers editor execution and replay, node trace/evidence, privacy import/review/export, persistent state, theme/compact/fullscreen/sidebar controls, demo studio and zero-policy inconclusive results.
+- TypeScript typecheck passed.
+- Optimized Next.js production build passed, including `/` and `/demo`.
+- Desktop (1600×1000) and compact (390×844) Studio layouts inspected; compact page had no horizontal document overflow.
+- One upstream Starlette TestClient deprecation warning remains; it does not fail the suite.
 
-## Backend coverage
+## Fresh external model verification
 
-Templates and DAG validation; invalid references/connections/configuration; optimistic version conflicts; graph-driven baseline/fix/retest; immutable historical evidence; disabled assertions; four scenario outcomes; exact finding-to-transcript mapping; SSE replay/cursors; trusted authorization; idempotency mismatch; outbound call authorization gates; artifact import and malformed uploads; PII redaction; independent human reviews; recording/run deletion; signed gateway rejection and deduplication; cancellation; safe retry attempts; forbidden provider retry settings; provider error sanitization; hosted waiting/resumption without duplicate call dispatch; missing provider evidence; origin checks and optional API token.
+Using the configured Groq account, a read-only model-list request succeeded and confirmed the configured target, attacker and judge model IDs were available.
 
-Provider adapter tests use HTTP mocks and injected transports. They are offline contract tests, not proof that a real Bolna account or voice call succeeded.
+A fresh synthetic-input LLM smoke test ran against the demo finance prompt using the actual Groq API:
 
-## Browser walkthrough passed
+1. Baseline completed with one finding.
+2. The real model-generated hardening endpoint succeeded.
+3. Replay completed with a passing evaluated result.
+4. Comparison accepted the pinned inputs and guardrail-only treatment change.
 
-- Opened the live app, executed the baseline graph, inspected real backend event history.
-- Selected a policy event, opened the corresponding node inspector, and saw its blocked finding with the exact source quote.
-- Clicked the evidence timestamp and saw the linked transcript segment.
-- Changed the simulated agent's refusal setting and reran. The new transcript refused access; the unauthorized tool request disappeared.
-- Compared v1 and v2: baseline needed review, new run passed, one finding resolved, one node changed.
-- Added an unconnected End node. Validate rejected the graph. Undo restored a valid graph.
-- Opened the production build after backend restart and confirmed the persisted workflow loaded.
-- Checked desktop and compact layouts and dark theme. This is a desktop-oriented graph editor; compact screens have a constrained canvas and hide the node library.
+This was one prompt-level example, not a full statistical campaign or a hosted phone conversation. The 16-run LLM campaign has not been reported as live-verified. Provider response variability and rate limits remain relevant. The full 16-run fixture campaign was exercised through backend and browser tests.
 
-The Playwright test file is included for repeatable local browser CI, but its command-line runner was not executed in this delivery. The described UI flow was executed via the available browser automation tool.
+## Bolna verification boundary
 
-## Not verified / blocked
+The earlier integration record (22 October) authenticated to Bolna, retrieved the connected agent, dispatched a call that ended `busy`, and imported a separate completed dashboard call with 15 transcript segments. That is not evidence of a completed Sentinel-dispatched conversation. No new telephone call or hosted prompt update was performed during this demo-preparation pass.
 
-Live verification on 22 October 2026 authenticated a Bolna account, retrieved the `bolnasymphony` agent, imported a completed dashboard-generated call (15 transcript segments), and ran the persisted audit workflow against it. A Sentinel API-dispatched call was accepted and assigned a provider execution ID, then ended with provider status `busy`; it did not produce a completed call artifact. The hosted provider did not expose recording audio or aligned transcript timestamps for the imported call, so acoustic coverage validation remains open. Multi-tenant authorization, public deployment, autonomous audio callers, and comprehensive production-grade PII classification remain outside this local MVP.
+Recording download security and prompt deployment/rollback behavior are tested locally with mocks and deterministic helpers; availability of a specific provider recording URL and the hosted prompt-update contract still need account-level verification before filming those as completed operations.
 
-Screenshots in this directory show actual local application state, not generated mockups. Earlier development hot-reload warnings occurred when an effect's dependencies changed during editing; the production build and subsequent type checks passed.
+## Reproduce
+
+Install dependencies and Chromium, then run `bash scripts/verify.sh`. It uses a temporary database, clears external keys, starts isolated services, runs the checks and stops its services. The script prints the logs directory. Do not point the browser suite at the working user database.
+
+## Scope that remains open
+
+Shared multi-tenant production deployment, autonomous audio adversaries, precise speech alignment/omission recovery, comprehensive contextual/spoken PII detection, redacted audio exports, and general safety/accuracy claims remain outside the verified local MVP.

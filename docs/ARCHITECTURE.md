@@ -57,3 +57,11 @@ PII redaction covers selected key names, email addresses and phone-like strings.
 ## Security/deployment scope
 
 The MVP is a single trusted local workspace. No tenant-isolation or production identity claim is made. Origin checks, rate limiting, explicit test-number allowlisting, bounded provider calls, fixed outbound provider hosts, secret omission, upload limits and optional gateway tokens are included. An authenticated reverse proxy, project identity model, resource authorization, robust quotas, encryption, backups, trusted identity binding and durable workers are prerequisites to shared deployment.
+
+## Demo and release-check additions — 23 October 2026
+
+`campaigns.py` creates a bounded persisted suite with eight English/Hindi cases and baseline/candidate variants. Each cell is a normal persisted graph execution. The candidate must pass policy coverage and complete required legitimate tools. The studio is an independent Next route at `/demo`, with links back to `/?run=<id>` for full trace inspection.
+
+`results.py` centralizes conservative assessment and comparison controls. `run_context` preserves the private original prompt/model settings for replay; public node evidence stores hashes and model identities. Replays reject changed workflow controls beyond the guardrail treatment. Invalid judge outputs produce inconclusive coverage.
+
+Provider tool logs remain retrospective observations. `recordings.py` retrieves public/signed HTTPS audio without a Bolna credential, rejects redirects and non-public destinations, and enforces a 25 MB limit. `prompt_updates.py` owns bounded managed sections. Prompt deployments preserve a private backup, compare expected prompt hashes, and allow rollback only while the deployed prompt remains unchanged.
