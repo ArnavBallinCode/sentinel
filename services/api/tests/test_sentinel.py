@@ -25,6 +25,11 @@ def client(tmp_path, monkeypatch):
         "TRANSCRIPTION_PROVIDER",
         "SENTINEL_API_TOKEN",
         "WEBHOOK_SECRET",
+        "ALLOWED_TEST_NUMBERS",
+        "MAX_LIVE_CALLS_PER_DAY",
+        "ALLOWED_ORIGINS",
+        "TOOL_ENDPOINT_TOKEN",
+        "TOOL_SUBJECT_ID",
     ):
         monkeypatch.delenv(key, raising=False)
     RATE.clear()

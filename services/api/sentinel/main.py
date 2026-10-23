@@ -434,7 +434,7 @@ def agents():
 
 @app.get("/api/bolna/executions/{id}/recording")
 async def bolna_recording(id: str):
-    """Stream a call recording with the server-side key; the browser never sees provider credentials."""
+    """Resolve the recording through Bolna, then fetch audio without forwarding its credential."""
     if not re.fullmatch(r"[\w-]{1,100}", id):
         raise HTTPException(422, "Invalid execution ID")
     raw = await BolnaAdapter().execution(id)

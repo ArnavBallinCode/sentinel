@@ -16,7 +16,7 @@ Model roles default to Groq GPT-OSS 20B target, Qwen 3.8 27B attacker and GPT-OS
 
 ## Demo and repository
 
-Use `docs/DEMO.md` for the 3:30 launch-film narration and shot list. `docs/PITCH_QA.md` explains product positioning and answers likely questions. `scripts/verify.sh` reproduces local verification without credentials. `scripts/capture-demo.mjs` captures synthetic-only product footage when the isolated demo server is running; see its usage header.
+Use `docs/REVIEWER_GUIDE.md` for the submission walkthrough, `docs/DEMO.md` for the 3:30 launch-film narration and shot list, and `docs/PITCH_QA.md` for product positioning. `npm run demo` starts both services without provider access and uses `artifacts/reviewer-data/`; `npm run dev` starts the configured workspace. `npm run verify` tests an isolated production build. CI also builds and smoke-tests the containers. Node 22 and Python 3.13 are pinned for reproducibility. `scripts/capture-demo.mjs` captures synthetic-only product footage when the isolated demo server is running; see its usage header.
 
 No supplied key, user phone number, customer recording, local database or private prompt snapshot belongs in the repository. Screenshots/footage committed for submission must use isolated synthetic state. New work by Claude or another tool should start from this committed baseline and preserve the mode/coverage labels.
 

@@ -12,4 +12,4 @@ ENV NODE_ENV=production API_URL=http://api:8000
 COPY --from=builder --chown=node:node /app /app
 USER node
 EXPOSE 3000
-CMD ["npm", "run", "start", "-w", "apps/web"]
+CMD ["node", "node_modules/next/dist/bin/next", "start", "apps/web", "--hostname", "0.0.0.0", "--port", "3000"]

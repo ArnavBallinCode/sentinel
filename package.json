@@ -1,14 +1,23 @@
 {
   "name": "sentinel",
+  "version": "0.1.0",
+  "description": "Visual testing and evidence for AI voice agents",
+  "license": "MIT",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "apps/web"
   ],
   "scripts": {
-    "dev": "npm run dev -w apps/web",
+    "dev": "bash scripts/dev.sh",
+    "dev:web": "npm run dev -w apps/web",
+    "demo": "bash scripts/dev.sh --offline",
     "build": "npm run build -w apps/web",
     "typecheck": "npm run typecheck -w apps/web",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify": "bash scripts/verify.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0"

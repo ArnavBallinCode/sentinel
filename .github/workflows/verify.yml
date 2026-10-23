@@ -13,7 +13,35 @@ jobs:
           node-version: '22'
           cache: npm
       - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.13'
       - run: npm ci
       - run: uv sync --directory services/api --frozen
       - run: npx playwright install --with-deps chromium
       - run: bash scripts/verify.sh
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-traces
+          path: test-results/
+          retention-days: 7
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build and start isolated containers
+        run: docker compose -p sentinel-ci up --build --detach --wait --wait-timeout 120
+      - name: Exercise the production UI proxy and offline release check
+        run: node scripts/smoke-offline.mjs
+        env:
+          SMOKE_BASE_URL: http://127.0.0.1:3000
+      - name: Container logs
+        if: failure()
+        run: docker compose -p sentinel-ci logs --no-color --tail 100
+      - name: Stop isolated containers and remove test data
+        if: always()
+        run: docker compose -p sentinel-ci down --volumes

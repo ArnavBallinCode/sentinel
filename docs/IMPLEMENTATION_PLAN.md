@@ -7,6 +7,7 @@
 - Inconclusive handling, observational provider logs, controlled replay and original prompt snapshots.
 - Recording credential isolation, guarded prompt-section updates and rollback.
 - Behavioral/backend/browser verification, production build, contributor handoff and CI.
+- Submission README and reviewer guide, isolated key-free launcher, pinned runtimes, production-browser verification and container smoke checks.
 
 ## Before final video upload
 
