@@ -1,0 +1,10 @@
+[Unit]
+Description=Ensure the Sentinel route is in the VoxBento Caddyfile
+After=caddy.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sentinel-caddy-ensure
+
+[Install]
+WantedBy=multi-user.target

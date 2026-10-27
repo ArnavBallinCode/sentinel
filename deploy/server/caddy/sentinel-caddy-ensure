@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# VoxBento deploys copy the repo Caddyfile over /etc/caddy/Caddyfile on every deploy.
+# Re-add the Sentinel route afterwards, and only reload a config that validates.
+set -euo pipefail
+LIVE=/etc/caddy/Caddyfile
+BLOCK=/etc/caddy/sentinel.caddy
+exec 9>/run/sentinel-caddy.lock
+flock 9
+grep -q '^\s*@sentinel path ' "$LIVE" && exit 0
+if ! grep -q '^voxbento\.com {' "$LIVE"; then
+  echo "voxbento.com site block not found; leaving Caddy untouched" >&2
+  exit 1
+fi
+NEXT=$(mktemp)
+trap 'rm -f "$NEXT"' EXIT
+sed "/^voxbento\.com {/r $BLOCK" "$LIVE" > "$NEXT"
+if ! caddy validate --config "$NEXT" --adapter caddyfile >/dev/null 2>&1; then
+  echo "Caddyfile with the Sentinel route failed validation; leaving Caddy untouched" >&2
+  exit 1
+fi
+cat "$NEXT" > "$LIVE"
+systemctl reload caddy
+echo "Sentinel route restored"
