@@ -1,0 +1,51 @@
+# Free-tier hackathon deployment: two free web services, no disk. Evidence is lost on every
+# restart or idle spin-down. No provider keys or private evidence in this file.
+services:
+  - type: web
+    name: sentinel-api
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: services/api
+    buildCommand: pip install uv==0.9.5 && uv sync --frozen --no-dev
+    startCommand: uv run --no-sync uvicorn sentinel.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.5"
+      - key: SENTINEL_DATA_DIR
+        value: /tmp/sentinel
+      # The API is publicly routable on the free tier; this token is its only gate.
+      - key: SENTINEL_API_TOKEN
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: MAX_LIVE_CALLS_PER_DAY
+        value: "3"
+  - type: web
+    name: sentinel-web
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: node node_modules/next/dist/bin/next start apps/web --hostname 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Public https URL of sentinel-api; read at build time, so rebuild after changing it.
+      - key: API_URL
+        sync: false
+      - key: SENTINEL_API_TOKEN
+        fromService:
+          type: web
+          name: sentinel-api
+          envVarKey: SENTINEL_API_TOKEN
+      - key: SENTINEL_REQUIRE_AUTH
+        value: "true"
+      - key: SENTINEL_WEB_USERNAME
+        value: sentinel
+      - key: SENTINEL_WEB_PASSWORD
+        generateValue: true

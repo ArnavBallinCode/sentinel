@@ -30,6 +30,7 @@ def client(tmp_path, monkeypatch):
         "ALLOWED_ORIGINS",
         "TOOL_ENDPOINT_TOKEN",
         "TOOL_SUBJECT_ID",
+        "RENDER",
     ):
         monkeypatch.delenv(key, raising=False)
     RATE.clear()
@@ -58,6 +59,23 @@ def start(client, workflow="adversarial", version=1, **kwargs):
 @pytest.mark.parametrize("kind", ["adversarial", "voice", "audit"])
 def test_templates_are_valid(kind):
     assert validate(Graph(**template(kind)))["valid"]
+
+
+def test_hosted_startup_requires_gateway_token(monkeypatch):
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.delenv("SENTINEL_API_TOKEN", raising=False)
+    with pytest.raises(RuntimeError, match="Hosted deployment requires"):
+        with TestClient(app):
+            pass
+
+
+def test_gateway_protects_private_reads_and_writes(client, monkeypatch):
+    monkeypatch.setenv("SENTINEL_API_TOKEN", "synthetic-gateway-token-for-tests-only")
+    assert client.get("/api/health").status_code == 200
+    assert client.get("/api/runs").status_code == 401
+    assert client.post("/api/campaigns", json={"engine": "scripted"}).status_code == 401
+    assert client.get("/api/runs", headers={"X-Sentinel-Token": "wrong"}).status_code == 401
+    assert client.get("/api/runs", headers={"X-Sentinel-Token": "synthetic-gateway-token-for-tests-only"}).status_code == 200
 
 
 def test_invalid_graphs_reject_cycles_and_types():
@@ -367,6 +385,11 @@ async def test_provider_adapter_documented_contract(monkeypatch):
     await adapter.execution("e1")
     assert [r.url.path for r in seen] == ["/v2/agent/a1", "/call", "/executions/e1"]
     assert json.loads(seen[1].content)["recipient_phone_number"] == "+15555550100"
+    assert "from_phone_number" not in json.loads(seen[1].content)
+
+    monkeypatch.setenv("BOLNA_FROM_PHONE_NUMBER", "+15555550199")
+    await adapter.start("a1", "+15555550100")
+    assert json.loads(seen[-1].content)["from_phone_number"] == "+15555550199"
 
 
 async def test_provider_errors_do_not_expose_payloads(monkeypatch):

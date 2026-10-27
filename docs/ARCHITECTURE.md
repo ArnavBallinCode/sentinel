@@ -1,5 +1,7 @@
 # Architecture
 
+For protected shared-workspace hosting, [the Render guide](RENDER.md) describes a public Next.js gateway, private token-protected API and persistent evidence disk. `apps/web/proxy.ts` gates the UI and API forwarding using a shared login; it does not implement tenant isolation. Local execution below remains unchanged.
+
 ## Boundaries
 
 One Next.js application and one FastAPI process share a local SQLite database through the backend only. React Flow is the visual editor; it never decides execution outcomes. The browser sends a graph version and run parameters. The executor loads the immutable version and evaluates a validated topological ordering.

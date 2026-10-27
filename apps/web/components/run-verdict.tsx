@@ -1,4 +1,5 @@
 "use client";
+import { appPath } from "@/lib/paths";
 import { useEffect, useRef, useState } from "react";
 import {
   ShieldAlert,
@@ -170,7 +171,7 @@ export function RunVerdict({
                   <Volume2 size={15} /> {s.audio ? "Play original recording" : "Inspect conversation"}
                 </button>
               )}
-              <a href={`/api/runs/${run.id}/export`} target="_blank" rel="noreferrer">
+              <a href={appPath(`/api/runs/${run.id}/export`)} target="_blank" rel="noreferrer">
                 <Download size={15} /> Evidence JSON
               </a>
             </div>
@@ -330,7 +331,7 @@ export function Conversation({ run, seek }: { run: Run; seek: number | null }) {
         <audio
           ref={audio}
           controls
-          src={s.audio}
+          src={appPath(s.audio)}
           className="console-audio"
           onPlay={() => setPlaying(true)}
           onPause={() => { setPlaying(false); setSpeaking(null); }}

@@ -1,0 +1,43 @@
+# Independent project: docker compose -p sentinel -f docker-compose.hosted.yml up -d --build
+services:
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    env_file: .env.hosted
+    environment:
+      SENTINEL_DATA_DIR: /app/data
+    volumes:
+      - sentinel-evidence:/app/data
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_PATH: /sentinel
+    env_file: .env.web
+    environment:
+      SENTINEL_REQUIRE_AUTH: "true"
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/sentinel/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  sentinel-evidence:

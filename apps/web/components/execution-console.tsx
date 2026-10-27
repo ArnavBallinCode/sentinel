@@ -1,4 +1,5 @@
 "use client";
+import { appPath } from "@/lib/paths";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, ShieldCheck, Download, RefreshCw, Play } from "lucide-react";
 import { Button } from "./ui/button";
@@ -86,7 +87,7 @@ export function ExecutionConsole({
                   Refresh call
                 </Button>
               )}
-              <a title="Export run JSON" href={`/api/runs/${run.id}/export`} target="_blank" rel="noreferrer">
+              <a title="Export run JSON" href={appPath(`/api/runs/${run.id}/export`)} target="_blank" rel="noreferrer">
                 <Download size={14} />
               </a>
             </>
