@@ -119,7 +119,9 @@ docs/                     Architecture, verification, pitch and handoff
 
 ## Deployment and boundaries
 
-This is a single-user local MVP. Public multi-user deployment needs authenticated tenant isolation and operational hardening. Tool enforcement is preventive only when the original request reaches Sentinel's controlled boundary with trusted identity. Imported tool logs are observations.
+For a protected shared workspace on Render, use the [Render deployment guide](docs/RENDER.md) and [Blueprint](render.yaml). It specifies a public web app with a shared login, a private API and persistent evidence storage. Provider keys stay on the API service. Hosted deployment status and live verification are recorded separately from local checks.
+
+This is a single-workspace MVP. Public multi-user deployment needs authenticated tenant isolation and operational hardening. Tool enforcement is preventive only when the original request reaches Sentinel's controlled boundary with trusted identity. Imported tool logs are observations.
 
 Text PII controls are heuristic and do not comprehensively detect names, addresses, spoken identifiers or sensitive audio. Speech-omission recovery, autonomous voice attackers and production speech-quality evaluation are future work. See [deployment notes](docs/DEPLOYMENT.md) and [reference audit](docs/REPO_AUDIT.md).
 

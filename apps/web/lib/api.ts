@@ -1,8 +1,10 @@
+import { appPath } from "./paths";
+
 export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(appPath(`/api${path}`), {
     ...options,
     headers:
       options.body instanceof FormData

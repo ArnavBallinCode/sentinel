@@ -1,0 +1,5 @@
+    # ── Sentinel (temporary, hackathon) ── managed by sentinel-caddy.path; see Sentinel deploy/server/caddy
+    @sentinel path /sentinel /sentinel/*
+    handle @sentinel {
+        reverse_proxy localhost:3100
+    }

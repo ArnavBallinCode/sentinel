@@ -19,6 +19,8 @@ from .results import metrics, comparison_reasons, digest, provenance
 
 @asynccontextmanager
 async def lifespan(app):
+    if os.getenv("RENDER") == "true" and len(os.getenv("SENTINEL_API_TOKEN", "")) < 32:
+        raise RuntimeError("Hosted deployment requires a strong SENTINEL_API_TOKEN.")
     store.init_db()
     for kind in ("adversarial", "voice", "audit"):
         if not store.get("workflow", kind):
@@ -62,7 +64,7 @@ async def security(request, call_next):
     if (
         token
         and request.url.path != "/api/health"
-        and not hmac.compare_digest(request.headers.get("X-Sentinel-Token", ""), token)
+        and not hmac.compare_digest(request.headers.get("X-Sentinel-Token", "").encode(), token.encode())
     ):
         return JSONResponse({"detail": "Unauthorized"}, 401)
     if request.method in ("POST", "PUT", "DELETE"):
@@ -81,6 +83,9 @@ async def security(request, call_next):
         bucket.append(now)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
+    if token:
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return response
 
 

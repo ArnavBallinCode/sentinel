@@ -1,5 +1,8 @@
-import os, httpx
+import logging, os, httpx
 from urllib.parse import quote
+
+
+log = logging.getLogger("sentinel.bolna")
 
 
 class ProviderError(Exception):
@@ -27,6 +30,10 @@ class BolnaAdapter:
                 r.raise_for_status()
                 return r.json()
             except (httpx.HTTPError, ValueError) as e:
+                # The provider's reason stays in the server log; clients only see the status.
+                response = getattr(e, "response", None)
+                if response is not None:
+                    log.warning("Bolna %s %s -> %s: %s", method, path, response.status_code, response.text[:500])
                 raise ProviderError(
                     f"Bolna request failed ({getattr(getattr(e, 'response', None), 'status_code', 'network')}). No automatic call retry was attempted."
                 ) from None
@@ -35,9 +42,11 @@ class BolnaAdapter:
         return await self.request("GET", f"/v2/agent/{quote(id, safe='')}")
 
     async def start(self, id, recipient):
-        return await self.request(
-            "POST", "/call", {"agent_id": id, "recipient_phone_number": recipient}
-        )
+        payload = {"agent_id": id, "recipient_phone_number": recipient}
+        # Without a sender Bolna uses the account default, which may not be the provider the agent dials with.
+        if sender := os.getenv("BOLNA_FROM_PHONE_NUMBER"):
+            payload["from_phone_number"] = sender
+        return await self.request("POST", "/call", payload)
 
     async def execution(self, id):
         return await self.request("GET", f"/executions/{quote(id, safe='')}")

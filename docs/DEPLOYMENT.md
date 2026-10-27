@@ -1,5 +1,7 @@
 # Startup, live verification and deployment
 
+For protected Render hosting, see [RENDER.md](RENDER.md). Local development and Docker Compose are described below.
+
 ## Local start
 
 Use **`npm run demo`** for the credential-free reviewer experience. It ignores `.env` and inherited provider keys, uses `artifacts/reviewer-data/`, and starts the API on loopback port **8001** plus Next.js on **3000**. Dependency installation requires network access; scripted rehearsal does not use external providers.

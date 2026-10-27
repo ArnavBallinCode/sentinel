@@ -20,6 +20,7 @@ args=(--host 127.0.0.1 --port "$DEV_API_PORT")
 if [[ "${1:-}" == "--offline" ]]; then
   # Never inherit provider access or a working database into the reviewer demo.
   unset DATABASE_URL
+  unset RENDER SENTINEL_REQUIRE_AUTH SENTINEL_WEB_USERNAME SENTINEL_WEB_PASSWORD API_HOSTPORT
   export BOLNA_API_KEY= OPENAI_API_KEY= GROQ_API_KEY= SENTINEL_API_TOKEN=
   export WEBHOOK_SECRET= TOOL_ENDPOINT_TOKEN= ALLOWED_TEST_NUMBERS= MAX_LIVE_CALLS_PER_DAY=0
   export SENTINEL_DATA_DIR="$(pwd)/artifacts/reviewer-data"

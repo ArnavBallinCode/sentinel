@@ -1,4 +1,5 @@
 "use client";
+import { appPath } from "@/lib/paths";
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   ReactFlow,
@@ -292,7 +293,7 @@ function Workspace() {
     void api<Review[]>(`/runs/${runId}/reviews`).then((r) => {
       if (alive) setReviews(r);
     });
-    const source = new EventSource(`/api/runs/${runId}/events`);
+    const source = new EventSource(appPath(`/api/runs/${runId}/events`));
     source.onmessage = (e) => {
       const event = JSON.parse(e.data) as Event;
       setEvents((old) =>

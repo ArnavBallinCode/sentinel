@@ -1,4 +1,12 @@
-# Handoff — demo preparation, 23 October 2026
+# Handoff — Render preparation, 27 October 2026
+
+## Deployment status
+
+The user authorized a small paid Render setup using $50 in credits. `render.yaml` defines a public Node web service, a private Python API and a 1 GB evidence disk in Singapore (about $14.25/month base cost). The web proxy adds shared HTTP Basic authentication and injects the private API token only after authentication. Missing credentials fail closed. This is a trusted shared workspace, not user/tenant isolation. Local offline mode remains credential-free.
+
+The account is authenticated, but Render Blueprint validation returned `need_payment_info`; no services have been created. The user has been asked to resolve the workspace billing requirement. Once resolved, validate again, provision exactly these resources, set exact allowed origins, verify synthetic runs and persistence, then configure providers privately. Read `docs/RENDER.md`. Do not copy local call evidence into the hosted database. Automatic deploys start disabled for recording stability.
+
+The user also asked about `voxbento.com/sentinel`. Voxbento was inspected read-only: a temporary Caddy redirect is a minimal change, while fully mounting Sentinel under that path needs base-path integration. Recommendation: independent Sentinel hosting with an optional temporary redirect. No Voxbento change or domain/DNS mutation has been made.
 
 ## What changed
 

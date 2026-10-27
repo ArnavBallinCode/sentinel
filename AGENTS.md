@@ -26,6 +26,7 @@ Start with `docs/HANDOFF.md`, `docs/DEMO.md`, and `docs/VERIFICATION.md`. The or
 - `redteam.py`: model conversations, judge, prompt hardening. `run_context` stores private original prompt snapshots for replay.
 - `recordings.py`: public HTTPS recording fetch with no forwarded Bolna credential.
 - `prompt_updates.py`: bounded guardrail section replacement; hosted deployment has stale-prompt protection and rollback.
+- `apps/web/proxy.ts`: shared hosted-workspace authentication and server-side API token injection. Render deployment is described in `docs/RENDER.md`; this is not tenant isolation.
 - SQLite documents/events live under `SENTINEL_DATA_DIR`; keep databases and call artifacts out of Git.
 
 ## Working rules

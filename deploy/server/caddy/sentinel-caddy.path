@@ -1,0 +1,8 @@
+[Unit]
+Description=Restore the Sentinel route when a VoxBento deploy replaces the Caddyfile
+
+[Path]
+PathChanged=/etc/caddy/Caddyfile
+
+[Install]
+WantedBy=multi-user.target

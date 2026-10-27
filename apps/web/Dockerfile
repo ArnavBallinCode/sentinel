@@ -4,6 +4,8 @@ COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/package.json
 RUN npm ci
 COPY apps/web ./apps/web
+ARG NEXT_PUBLIC_BASE_PATH=""
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 ENV API_URL=http://api:8000
 RUN npm run build
 FROM node:22-alpine

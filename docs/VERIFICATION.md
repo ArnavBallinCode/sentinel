@@ -1,9 +1,9 @@
-# Verification — 23 October 2026
+# Verification — 27 October 2026
 
 ## Current checks
 
-- Backend suite: **46 passed**, including coverage failures, provider-log provenance, replay identity, comparison controls, recording credential isolation, guardrail-section preservation, bilingual release checks and refusal-only behavior.
-- Browser suite: **5 passed against the optimized production build**, with an isolated credential-free backend. Covers editor execution and replay, node trace/evidence, privacy import/review/export, persistent state, theme/compact/fullscreen/sidebar controls, demo studio and zero-policy inconclusive results.
+- Backend suite: **48 passed**, including coverage failures, provider-log provenance, replay identity, comparison controls, recording credential isolation, guardrail-section preservation, bilingual release checks, refusal-only behavior and hosted gateway protection.
+- Browser suites: **7 passed against the optimized production build**, with isolated credential-free backends. Five cover editor execution and replay, node trace/evidence, privacy import/review/export, persistent state, theme/compact/fullscreen/sidebar controls, demo studio and zero-policy inconclusive results. Two cover anonymous/spoofed denial, private API protection, authenticated runs, exports, SSE and cross-origin rejection. A separate startup check confirms missing hosted credentials return 503 rather than allowing access.
 - TypeScript typecheck passed.
 - Optimized Next.js production build passed, including `/` and `/demo`.
 - Desktop (1600×1000) and compact (390×844) Studio layouts inspected; compact page had no horizontal document overflow.
@@ -17,7 +17,11 @@
 - Docker Compose configuration validates. CI builds both containers and runs the same offline campaign through the production frontend's API proxy; see the current [GitHub checks](https://github.com/ArnavBallinCode/sentinel/actions/workflows/verify.yml). The local Docker daemon was unavailable during this pass, so container execution is checked on the CI runner.
 - No new model request, phone call or hosted prompt update was made during submission packaging. The earlier external-model result below is recorded separately.
 
-## Fresh external model verification
+## Render deployment preparation — 27 October
+
+The Render CLI account was authenticated and its workspace had no existing services. Blueprint validation reached the account check but returned `need_payment_info` for the two paid services. No Render service or persistent disk has been provisioned yet; there is no verified live URL. The native and protected-production tests above passed locally. The Voxbento repository was inspected read-only to evaluate a temporary redirect; it was not modified.
+
+## External model verification — 23 October
 
 Using the configured Groq account, a read-only model-list request succeeded and confirmed the configured target, attacker and judge model IDs were available.
 

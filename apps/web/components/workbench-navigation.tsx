@@ -1,4 +1,5 @@
 "use client";
+import { appPath } from "@/lib/paths";
 import { Shield, Workflow, AudioLines, FileAudio, History, GitCompareArrows, Sun, Moon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Graph } from "@/lib/types";
 
@@ -15,10 +16,10 @@ export function WorkbenchNavigation({ graph, onSwitch, onOpen, dark, onTheme, co
 }) {
   return <nav className={`workbench-nav ${collapsed ? "is-collapsed" : ""}`} aria-label="Workspace navigation">
     <button className="sidebar-toggle" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={onCollapse}>{collapsed ? <PanelLeftOpen size={16}/> : <PanelLeftClose size={16}/>}</button>
-    <a href="/" className="workspace-brand"><span><Shield size={23}/></span><strong>sentinel<span className="brand-dot">.</span></strong></a>
+    <a href={appPath("/")} className="workspace-brand"><span><Shield size={23}/></span><strong>sentinel<span className="brand-dot">.</span></strong></a>
     <div className="workspace-caption">VOICE AGENT RED-TEAM</div>
     <button aria-label="Overview" className={`workspace-link ${home ? "active" : ""}`} onClick={onHome}><Workflow size={19}/><span>Overview</span></button>
-    <a className="workspace-link" href="/demo" aria-label="Demo studio"><Shield size={19}/><span><strong>Demo studio</strong><small>Release checks · evidence</small></span></a>
+    <a className="workspace-link" href={appPath("/demo")} aria-label="Demo studio"><Shield size={19}/><span><strong>Demo studio</strong><small>Release checks · evidence</small></span></a>
     <div className="nav-section-label">BUILD & TEST</div>
     {templates.map(({id, label, detail, Icon}) => <button key={id} title={label} aria-label={`${label} ${detail}`} onClick={() => onSwitch(id)} className={`workspace-link ${!home && graph?.id === id ? "active" : ""}`} aria-current={!home && graph?.id === id ? "page" : undefined}>
       <Icon size={19}/><span><strong>{label}</strong><small>{detail}</small></span>

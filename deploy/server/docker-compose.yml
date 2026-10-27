@@ -1,0 +1,23 @@
+# Temporary hackathon deployment on the VoxBento host, proxied by Caddy at voxbento.com/sentinel.
+# Remove with `docker compose down -v` plus the Caddy handle block; nothing else on the host changes.
+name: sentinel
+services:
+  sentinel:
+    build:
+      context: ../..
+      dockerfile: deploy/server/Dockerfile
+    env_file: .env
+    environment:
+      ALLOWED_ORIGINS: https://voxbento.com
+    # Loopback only: Caddy is the sole entry point.
+    ports:
+      - "127.0.0.1:3100:7860"
+    # Hard cap so Sentinel can never starve the live VoxBento media stack.
+    mem_limit: 768m
+    restart: unless-stopped
+    # Keeps runs across container recreation (env changes, rebuilds).
+    volumes:
+      - sentinel-data:/app/data
+
+volumes:
+  sentinel-data:
