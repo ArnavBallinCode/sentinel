@@ -5,7 +5,9 @@ import { NextRequest, NextResponse } from "next/server";
 export function proxy(request: NextRequest) {
   const required = process.env.SENTINEL_REQUIRE_AUTH === "true" || process.env.RENDER === "true";
   if (!required) return NextResponse.next();
-  if (request.nextUrl.pathname === "/api/health") return NextResponse.next();
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const path = request.nextUrl.pathname;
+  if (path === "/api/health" || path === `${base}/api/health`) return NextResponse.next();
 
   const username = process.env.SENTINEL_WEB_USERNAME || "";
   const password = process.env.SENTINEL_WEB_PASSWORD || "";

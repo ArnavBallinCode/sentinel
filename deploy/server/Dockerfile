@@ -21,6 +21,6 @@ COPY --from=web /app /app/web
 COPY deploy/server/start.sh /app/start.sh
 RUN chown -R sentinel:sentinel /app
 USER sentinel
-ENV NODE_ENV=production SENTINEL_DATA_DIR=/tmp/sentinel SENTINEL_REQUIRE_AUTH=true
+ENV NODE_ENV=production NEXT_PUBLIC_BASE_PATH=/sentinel SENTINEL_DATA_DIR=/tmp/sentinel SENTINEL_REQUIRE_AUTH=true
 EXPOSE 7860
 CMD ["bash", "/app/start.sh"]
