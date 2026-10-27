@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || "",
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  async redirects() {
+    const base = process.env.NEXT_PUBLIC_BASE_PATH;
+    return base ? [{ source: "/", destination: base, basePath: false, permanent: false }] : [];
+  },
   async rewrites() {
     return [
       {
