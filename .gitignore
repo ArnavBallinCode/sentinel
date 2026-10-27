@@ -19,3 +19,4 @@ artifacts/
 *.webm
 *.mp4
 apps/web/next-env.d.ts
+deploy/server/.env

@@ -1,11 +1,11 @@
-# Single-container Hugging Face Space: the API stays on loopback, only the gated web app is exposed.
+# Single container for the VoxBento host: the API stays on loopback, only the gated web app is exposed.
 FROM node:22-slim AS web
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/package.json
 RUN npm ci
 COPY apps/web ./apps/web
-# Served behind voxbento.com/sentinel; both values are baked in at build time.
+# Served at voxbento.com/sentinel; both values are baked in at build time.
 ENV NEXT_PUBLIC_BASE_PATH=/sentinel API_URL=http://127.0.0.1:8001
 RUN npm run build
 
@@ -18,7 +18,7 @@ COPY services/api/pyproject.toml services/api/uv.lock ./
 RUN uv sync --frozen --no-dev
 COPY services/api/sentinel ./sentinel
 COPY --from=web /app /app/web
-COPY deploy/hf/start.sh /app/start.sh
+COPY deploy/server/start.sh /app/start.sh
 RUN chown -R sentinel:sentinel /app
 USER sentinel
 ENV NODE_ENV=production SENTINEL_DATA_DIR=/tmp/sentinel SENTINEL_REQUIRE_AUTH=true
