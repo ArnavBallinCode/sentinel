@@ -4,7 +4,10 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: process.env.E2E_BASE_URL,
-    httpCredentials: { username: "sentinel-test", password: "synthetic-hosted-password-for-tests-only" },
+    httpCredentials: {
+      username: process.env.E2E_USERNAME || "sentinel-test",
+      password: process.env.E2E_PASSWORD || "synthetic-hosted-password-for-tests-only",
+    },
   },
   reporter: "list",
 });
