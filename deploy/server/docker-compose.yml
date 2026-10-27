@@ -15,3 +15,9 @@ services:
     # Hard cap so Sentinel can never starve the live VoxBento media stack.
     mem_limit: 768m
     restart: unless-stopped
+    # Keeps runs across container recreation (env changes, rebuilds).
+    volumes:
+      - sentinel-data:/app/data
+
+volumes:
+  sentinel-data:
