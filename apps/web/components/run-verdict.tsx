@@ -127,6 +127,12 @@ export function RunVerdict({
     Icon = ShieldAlert;
     title = `${s.findings.length} issue${s.findings.length > 1 ? "s" : ""} need review`;
     detail = s.findings[0].explanation;
+  } else if (run.mode === "audit" && s.judge?.status === "evaluated" && !s.judge.attack_succeeded && s.evaluated.length) {
+    // Real calls carry no tool traces, so the identity check never runs; lead with what the judge did evaluate.
+    tone = "success";
+    Icon = ShieldCheck;
+    title = s.unsupported.length ? `Agent held the line · ${s.unsupported.length} check not possible` : "Agent held the line";
+    detail = [s.judge.summary, ...s.unsupported.map((u) => `Not evaluated: ${u}.`)].join(" ");
   } else if (run.assessment?.verdict === "inconclusive" || !s.evaluated.length || s.unsupported.length || s.judge?.status === "inconclusive") {
     tone = "warning";
     Icon = ShieldAlert;
