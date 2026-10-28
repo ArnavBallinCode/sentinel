@@ -1,4 +1,5 @@
 import logging, os, httpx
+from .keyring import get_key
 from urllib.parse import quote
 
 
@@ -14,10 +15,12 @@ class BolnaAdapter:
         self.transport = transport
 
     async def request(self, method, path, payload=None):
-        key = os.getenv("BOLNA_API_KEY")
+        key = get_key("BOLNA_API_KEY")
         if not key:
+            from .public_demo import enabled
             raise ProviderError(
-                "Configure BOLNA_API_KEY on the server to use hosted Bolna."
+                "Add your Bolna API key under Connections to use hosted Bolna."
+                if enabled() else "Configure BOLNA_API_KEY on the server to use hosted Bolna."
             )
         async with httpx.AsyncClient(
             base_url="https://api.bolna.ai",

@@ -1,5 +1,6 @@
 "use client";
 import { appPath } from "@/lib/paths";
+import { getKeys, providerHeaders } from "@/lib/api";
 import { useEffect, useRef, useState } from "react";
 import {
   ShieldAlert,
@@ -71,6 +72,23 @@ export function summarize(run: Run) {
   const duration = records.reduce((sum, n) => sum + (n.duration_ms || 0), 0);
   const errors = Object.entries(run.nodes).filter(([, n]) => n.error);
   return { transcript, findings, tools, blocked, evaluated, unsupported, coverage, audio, scenario, language, behavior, judge, engine, agentSource, done, total, duration, errors };
+}
+
+// Recordings fetched with the visitor's own Bolna key can't be streamed by a bare <audio src>, so fetch them with headers.
+function useAudioSrc(url?: string) {
+  const [src, setSrc] = useState<string | undefined>(url ? appPath(url) : undefined);
+  useEffect(() => {
+    if (!url) return setSrc(undefined);
+    if (!getKeys().bolna) return setSrc(appPath(url));
+    let objectUrl = "";
+    let alive = true;
+    void fetch(appPath(url), { headers: providerHeaders() })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("recording unavailable"))))
+      .then((b) => { objectUrl = URL.createObjectURL(b); if (alive) setSrc(objectUrl); })
+      .catch(() => alive && setSrc(undefined));
+    return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [url]);
+  return src;
 }
 
 const terminal = ["completed", "failed", "cancelled", "interrupted"];
@@ -266,6 +284,7 @@ export function Conversation({ run, seek }: { run: Run; seek: number | null }) {
   const [speaking, setSpeaking] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
+  const audioSrc = useAudioSrc(s.audio);
   const cancelled = useRef(false);
   useEffect(() => () => { cancelled.current = true; window.speechSynthesis?.cancel(); }, []);
   useEffect(() => { window.speechSynthesis?.cancel(); setPlaying(false); setSpeaking(null); }, [run.id]);
@@ -337,7 +356,7 @@ export function Conversation({ run, seek }: { run: Run; seek: number | null }) {
         <audio
           ref={audio}
           controls
-          src={appPath(s.audio)}
+          src={audioSrc}
           className="console-audio"
           onPlay={() => setPlaying(true)}
           onPause={() => { setPlaying(false); setSpeaking(null); }}

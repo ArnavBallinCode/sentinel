@@ -10,6 +10,7 @@ from . import store
 from .bolna import BolnaAdapter
 from .governance import authorize
 from .providers import semantic_provider
+from .keyring import get_key
 
 TRUSTED_SUBJECT = "SYN-001"
 
@@ -83,7 +84,7 @@ async def agent_prompt(agent_id: str | None, override: str = "") -> tuple[str, s
     """Return (prompt, source). Prefers an explicit prompt, then the live Bolna agent, then the demo agent."""
     if override.strip():
         return override, "workflow"
-    if agent_id and os.getenv("BOLNA_API_KEY"):
+    if agent_id and get_key("BOLNA_API_KEY"):
         raw = await BolnaAdapter().agent(agent_id)
         prompt = ((raw.get("agent_prompts") or {}).get("task_1") or {}).get("system_prompt")
         if prompt:

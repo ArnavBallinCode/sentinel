@@ -23,11 +23,29 @@ def validate_environment():
         raise RuntimeError("Public demo requires the private gateway token.")
 
 
+_ID = r"[\w.-]+"
+_GET = (
+    r"/api/(health|settings|registry|scenarios|demo-config|agents|recordings|compare|workflows|campaigns|runs|redteam/(attacks|prompt)|bolna/agents)",
+    rf"/api/(agents|campaigns|runs|workflows|recordings)/{_ID}",
+    rf"/api/runs/{_ID}/(events|export|reviews)",
+    rf"/api/workflows/{_ID}/versions",
+    rf"/api/recordings/{_ID}/audio",
+    rf"/api/bolna/agents/{_ID}/executions",
+    rf"/api/bolna/executions/{_ID}/recording",
+)
+_POST = (
+    r"/api/(campaigns|validate|runs|recordings|redteam/(attacks|harden))",
+    rf"/api/campaigns/{_ID}/cancel",
+    rf"/api/runs/{_ID}/(cancel|refresh|replay|reviews)",
+    rf"/api/bolna/executions/{_ID}/import",
+    rf"/api/workflows/{_ID}/publish",
+)
+_PUT = (rf"/api/workflows/{_ID}",)
+_DELETE = (rf"/api/(runs|recordings)/{_ID}",)
+
+
 def allowed_request(method, path):
-    if method in ("GET", "HEAD"):
-        return bool(re.fullmatch(
-            r"/api/(health|settings|registry|scenarios|demo-config|agents|recordings|compare|"
-            r"workflows(?:/[\w-]+(?:/versions)?)?|campaigns(?:/[\w-]+)?|"
-            r"runs(?:/[\w-]+(?:/(?:events|export|reviews))?)?)", path
-        ))
-    return method == "POST" and bool(re.fullmatch(r"/api/(campaigns|validate)", path))
+    """Everything judges need to run Sentinel end to end. Calls are refused separately (the server has no
+    number allowlist); hosted-agent writes, rollbacks, callbacks and the server-side tool endpoint stay closed."""
+    rules = {"GET": _GET, "HEAD": _GET, "POST": _POST, "PUT": _PUT, "DELETE": _DELETE}.get(method, ())
+    return any(re.fullmatch(rule, path) for rule in rules)

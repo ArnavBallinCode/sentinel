@@ -15,6 +15,7 @@ from .providers import configured_providers, transcription_provider
 from .executor import launch, TASKS, TERMINAL, refresh
 from . import redteam
 from .results import metrics, comparison_reasons, digest, provenance
+from .keyring import get_key, bind, OWNER
 
 
 @asynccontextmanager
@@ -29,7 +30,7 @@ async def lifespan(app):
             graph = template(kind)
             store.insert("version", f"{kind}:1", graph)
             store.put("workflow", kind, graph)
-    for run in store.all_docs("run"):
+    for stored, run in store.every("run"):
         if run["status"] == "running":
             run["status"] = "interrupted"
             for record in run["nodes"].values():
@@ -38,11 +39,11 @@ async def lifespan(app):
                     record["error"] = (
                         "Server restarted. External calls will not be replayed automatically."
                     )
-            store.put("run", run["id"], run)
-    for c in store.all_docs("campaign"):
+            store.put_stored(stored, run["id"], run)
+    for stored, c in store.every("campaign"):
         if c["status"] == "running":
             c["status"] = "interrupted"
-            store.put("campaign", c["id"], c)
+            store.put_stored(stored, c["id"], c)
     yield
     from .campaigns import CAMPAIGNS
     campaign_tasks = list(CAMPAIGNS.values())
@@ -70,15 +71,20 @@ async def security(request, call_next):
     ):
         return JSONResponse({"detail": "Unauthorized"}, 401)
     from .public_demo import enabled, allowed_request
-    if enabled() and not allowed_request(request.method, request.url.path):
-        return JSONResponse({"detail": "Public rehearsal: only synthetic release checks and evidence browsing are enabled. Live calls, uploads and provider actions are disabled."}, 403)
+    public = enabled()
+    if public:
+        bind(request.headers)
+        if not allowed_request(request.method, request.url.path):
+            return JSONResponse({"detail": "Not available in the public demo: live calls and changes to a hosted agent are disabled."}, 403)
+        if request.method not in ("GET", "HEAD") and not OWNER.get():
+            return JSONResponse({"detail": "Reload the page to start a session."}, 400)
     if request.method in ("POST", "PUT", "DELETE"):
         origin = request.headers.get("origin")
         if origin and origin not in os.getenv(
             "ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
         ).split(","):
             return JSONResponse({"detail": "Origin rejected"}, 403)
-        key = request.client.host if request.client else "local"
+        key = (OWNER.get() if public else None) or (request.client.host if request.client else "local")
         bucket = RATE[key]
         now = time.time()
         while bucket and bucket[0] < now - 60:
@@ -121,14 +127,15 @@ def registry():
 @app.get("/api/settings")
 def settings():
     return {
-        "bolna_configured": bool(os.getenv("BOLNA_API_KEY")),
+        "bolna_configured": bool(get_key("BOLNA_API_KEY")),
         "semantic_configured": bool(configured_providers()),
         "semantic_providers": configured_providers(),
         "allowed_numbers_count": len(
             [x for x in os.getenv("ALLOWED_TEST_NUMBERS", "").split(",") if x]
         ),
         "public_demo": os.getenv("SENTINEL_PUBLIC_DEMO") == "true",
-        "deployment": "Shared public synthetic rehearsal" if os.getenv("SENTINEL_PUBLIC_DEMO") == "true" else "single-user local workspace",
+        "byok": os.getenv("SENTINEL_PUBLIC_DEMO") == "true",
+        "deployment": "Shared public demo · bring your own keys" if os.getenv("SENTINEL_PUBLIC_DEMO") == "true" else "single-user local workspace",
         "limitations": [
             "Live calls require an opted-in allowlisted number.",
             "Hosted utterance interception is unsupported.",
@@ -226,6 +233,9 @@ async def start(req: RunRequest):
     check = validate(Graph(**graph), req.mode)
     if not check["valid"]:
         raise HTTPException(422, check["errors"])
+    from .public_demo import enabled as public_demo
+    if public_demo() and sum(not t.done() for t in TASKS.values()) >= 8:
+        raise HTTPException(429, "The shared demo is busy. Try again in a minute.")
     active = [r for r in store.all_docs("run") if r["status"] in ("running", "waiting")]
     if len(active) >= 5:
         raise HTTPException(429, "At most five active runs are supported.")
@@ -241,7 +251,7 @@ async def start(req: RunRequest):
                 403,
                 "An explicitly opted-in, server-allowlisted test number is required.",
             )
-        if not os.getenv("BOLNA_API_KEY"):
+        if not get_key("BOLNA_API_KEY"):
             raise HTTPException(422, "BOLNA_API_KEY is not configured.")
         if not req.agent_id:
             raise HTTPException(422, "Connect a Bolna agent first.")

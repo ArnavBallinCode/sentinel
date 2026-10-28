@@ -62,6 +62,7 @@ import type {
   FlowNode,
   RunSummary,
 } from "@/lib/types";
+import { KeyForm } from "./key-form";
 import { api, post } from "@/lib/api";
 import { useEditor, executionOrder } from "@/lib/editor";
 import { WorkflowNode, icons } from "./workflow-node";
@@ -75,6 +76,7 @@ import { WorkspaceOverview } from "./workspace-overview";
 import { NodeDetails } from "./node-details";
 const nodeTypes = { sentinel: WorkflowNode };
 type Settings = {
+  byok?: boolean;
   bolna_configured: boolean;
   semantic_configured: boolean;
   semantic_providers: string[];
@@ -1102,6 +1104,11 @@ function Workspace() {
               )}
               {modal === "settings" && (
                 <>
+                  {settings?.byok && (
+                    <KeyForm
+                      onSaved={() => void api<Settings>("/settings").then(setSettings).catch(() => {})}
+                    />
+                  )}
                   <div className="connection-card">
                     <span className="node-icon">
                       <Link2 size={22} />
@@ -1111,7 +1118,7 @@ function Workspace() {
                       <p>
                         {settings?.bolna_configured
                           ? "Server credentials configured"
-                          : "Add BOLNA_API_KEY to the server environment"}
+                          : settings?.byok ? "Add your Bolna key above" : "Add BOLNA_API_KEY to the server environment"}
                       </p>
                     </div>
                     <span

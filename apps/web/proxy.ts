@@ -30,7 +30,7 @@ export function proxy(request: NextRequest) {
     });
   }
 
-  if (publicDemo && (path === "/" || path === base || path === `${base}/`) && !request.nextUrl.searchParams.has("run")) {
+  if (publicDemo && (path === "/" || path === base || path === `${base}/`) && !request.nextUrl.searchParams.has("run") && !request.nextUrl.searchParams.has("workspace")) {
     return NextResponse.redirect(new URL(`${base}/demo`, request.url));
   }
 

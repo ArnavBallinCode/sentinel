@@ -4,11 +4,12 @@ Two modes share one container, one port (`127.0.0.1:3100`) and one Caddy route (
 
 ## Public judge demo (`docker-compose.public.yml`)
 
-Anonymous, synthetic, provider-free. Judges can run the scripted release check and inspect runs, evidence and workflow traces.
+Anonymous, bring-your-own-keys. Judges run the full product (stress test, harden and retest, release checks, workflow trace, call audits) with their own Groq/OpenAI key and, optionally, their own Bolna key.
 
-- No provider keys are passed to the container; startup fails if any are present (`public_demo.py`).
-- Its own data lives in the `sentinel-public-data` volume at `/app/data/public-demo`.
-- The API allows only a small set of reads, plus `POST /api/campaigns` (scripted fixtures, default guardrails, at most 100 stored checks) and `POST /api/validate`. Calls, uploads, prompt edits and provider actions return 403.
+- The server holds no provider keys; startup fails if any are present (`public_demo.py`). Keys arrive as request headers, live only in that request's context (`keyring.py`) and are never stored or logged.
+- Each browser gets a random session id. Its runs, workflows, recordings and imports are stored under that session (`store.py`) and are invisible to others; seeded data and links by run id stay readable.
+- Phone calls (no server-side number allowlist), pushing guardrails to a hosted agent, rollbacks, webhooks and the server tool endpoint are closed (`public_demo.allowed_request`).
+- Its data lives in the `sentinel-public-data` volume at `/app/data/public-demo`.
 
     docker compose -f docker-compose.public.yml up -d --build
 

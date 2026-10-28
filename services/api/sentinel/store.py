@@ -1,6 +1,7 @@
 import os, json, time
 from pathlib import Path
 from sqlalchemy import create_engine, text
+from .keyring import OWNER
 
 DATA = Path(os.getenv("SENTINEL_DATA_DIR", "data"))
 DATA.mkdir(parents=True, exist_ok=True)
@@ -36,60 +37,81 @@ def init_db():
         )
 
 
+# Public demo: each visitor writes to "<kind>@<session>"; reads also see the shared seeded "<kind>".
+# Kinds keyed by unguessable UUIDs stay readable by id from any session, so shared links and event streams work.
+CAPABILITY = ("run", "campaign", "recording", "run_context", "review", "attack")
+
+
+def _own(kind):
+    owner = OWNER.get()
+    return f"{kind}@{owner}" if owner else kind
+
+
+def _insert(c, kind, id, body):
+    c.execute(
+        text("INSERT INTO documents VALUES (:k,:i,:b,:t)"),
+        {"k": kind, "i": id, "b": json.dumps(body, ensure_ascii=False), "t": time.time()},
+    )
+
+
 def put(kind, id, body):
+    stored = _own(kind)
     with engine.begin() as c:
-        c.execute(
-            text("DELETE FROM documents WHERE kind=:k AND id=:i"), {"k": kind, "i": id}
-        )
-        c.execute(
-            text("INSERT INTO documents VALUES (:k,:i,:b,:t)"),
-            {
-                "k": kind,
-                "i": id,
-                "b": json.dumps(body, ensure_ascii=False),
-                "t": time.time(),
-            },
-        )
+        c.execute(text("DELETE FROM documents WHERE kind=:k AND id=:i"), {"k": stored, "i": id})
+        _insert(c, stored, id, body)
     return body
+
+
+def put_stored(stored_kind, id, body):
+    """Rewrite a document where it already lives (startup recovery across visitors)."""
+    with engine.begin() as c:
+        c.execute(text("DELETE FROM documents WHERE kind=:k AND id=:i"), {"k": stored_kind, "i": id})
+        _insert(c, stored_kind, id, body)
 
 
 def insert(kind, id, body):
     with engine.begin() as c:
-        c.execute(
-            text("INSERT INTO documents VALUES (:k,:i,:b,:t)"),
-            {
-                "k": kind,
-                "i": id,
-                "b": json.dumps(body, ensure_ascii=False),
-                "t": time.time(),
-            },
-        )
+        _insert(c, _own(kind), id, body)
     return body
 
 
 def get(kind, id):
+    own = _own(kind)
     with engine.connect() as c:
         row = c.execute(
-            text("SELECT body FROM documents WHERE kind=:k AND id=:i"),
-            {"k": kind, "i": id},
+            text("SELECT body FROM documents WHERE kind IN (:a,:b) AND id=:i ORDER BY kind=:a DESC"),
+            {"a": own, "b": kind, "i": id},
         ).first()
+        if not row and kind in CAPABILITY:
+            row = c.execute(
+                text("SELECT body FROM documents WHERE kind LIKE :p AND id=:i"),
+                {"p": f"{kind}@%", "i": id},
+            ).first()
     return json.loads(row[0]) if row else None
 
 
 def all_docs(kind):
     with engine.connect() as c:
         rows = c.execute(
-            text("SELECT body FROM documents WHERE kind=:k ORDER BY created DESC"),
-            {"k": kind},
+            text("SELECT body FROM documents WHERE kind IN (:a,:b) ORDER BY created DESC"),
+            {"a": _own(kind), "b": kind},
         ).all()
     return [json.loads(r[0]) for r in rows]
 
 
+def every(kind):
+    """(stored_kind, document) for every visitor's copy, for startup recovery."""
+    with engine.connect() as c:
+        rows = c.execute(
+            text("SELECT kind, body FROM documents WHERE kind=:k OR kind LIKE :p"),
+            {"k": kind, "p": f"{kind}@%"},
+        ).all()
+    return [(r[0], json.loads(r[1])) for r in rows]
+
+
 def delete(kind, id):
     with engine.begin() as c:
-        c.execute(
-            text("DELETE FROM documents WHERE kind=:k AND id=:i"), {"k": kind, "i": id}
-        )
+        c.execute(text("DELETE FROM documents WHERE kind=:k AND id=:i"), {"k": _own(kind), "i": id})
 
 
 def event(run_id, body):
