@@ -40,7 +40,7 @@ export function KeyForm({ onSaved }: { onSaved: () => void }) {
           />
         </label>
       ))}
-      <button type="submit" className="studio-primary">{saved ? "Saved for this tab" : "Use these keys"}</button>
+      <button type="submit" className="button button-primary studio-primary">{saved ? "Saved for this tab" : "Use these keys"}</button>
     </form>
   );
 }

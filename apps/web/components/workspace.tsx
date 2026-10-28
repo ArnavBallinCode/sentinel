@@ -1168,7 +1168,9 @@ function Workspace() {
                       <p>
                         {settings?.semantic_configured
                           ? `${settings.semantic_providers.join(" + ")} credentials configured`
-                          : "Optional · requires server-side GROQ_API_KEY or OPENAI_API_KEY"}
+                          : settings?.byok
+                            ? "Add your Groq or OpenAI key above to run real model tests"
+                            : "Optional · requires server-side GROQ_API_KEY or OPENAI_API_KEY"}
                       </p>
                     </div>
                   </div>
@@ -1180,9 +1182,9 @@ function Workspace() {
                     </p>
                   ))}
                   <div className="tip">
-                    Single-user local workspace. Keep API keys on the server.
-                    Shared deployment requires an authenticated reverse proxy
-                    and a tenant model.
+                    {settings?.byok
+                      ? "Public demo. Your runs, imports and edits are private to this browser session. Your keys are never stored on the server."
+                      : "Single-user local workspace. Keep API keys on the server. Shared deployment requires an authenticated reverse proxy and a tenant model."}
                   </div>
                 </>
               )}
