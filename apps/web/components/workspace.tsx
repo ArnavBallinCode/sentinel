@@ -663,7 +663,7 @@ function Workspace() {
   };
   return (
     <div className={`app ${dark ? "dark" : ""} ${canvasOnly ? "canvas-only" : ""}`}>
-      <WorkbenchNavigation graph={graph} onSwitch={id => void act(() => switchWorkflow(id))} onOpen={openModal} dark={dark} onTheme={() => { setDark(!dark); localStorage.setItem("sentinel-theme", dark ? "light" : "dark"); }} connected={Boolean(settings?.bolna_configured)} home={home} onHome={() => setHome(true)} collapsed={sidebarCollapsed} onCollapse={() => { setSidebarCollapsed(!sidebarCollapsed); localStorage.setItem("sentinel-sidebar", sidebarCollapsed ? "expanded" : "collapsed"); }}/>
+      <WorkbenchNavigation graph={graph} onSwitch={id => void act(() => switchWorkflow(id))} onOpen={openModal} dark={dark} onTheme={() => { setDark(!dark); localStorage.setItem("sentinel-theme", dark ? "light" : "dark"); }} connected={Boolean(settings?.byok ? settings.semantic_configured || settings.bolna_configured : settings?.bolna_configured)} byok={Boolean(settings?.byok)} home={home} onHome={() => setHome(true)} collapsed={sidebarCollapsed} onCollapse={() => { setSidebarCollapsed(!sidebarCollapsed); localStorage.setItem("sentinel-sidebar", sidebarCollapsed ? "expanded" : "collapsed"); }}/>
       {home && <WorkspaceOverview registry={registry} onExplore={kind => void act(async () => {
         await switchWorkflow(["recording", "normalize", "coverage", "pii", "semantic"].includes(kind) ? "audit" : kind === "bolna" ? "voice" : "adversarial");
         const node = useEditor.getState().graph?.nodes.find(n => n.type === kind);

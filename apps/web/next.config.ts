@@ -4,7 +4,11 @@ const config: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   async redirects() {
     const base = process.env.NEXT_PUBLIC_BASE_PATH;
-    return base ? [{ source: "/", destination: base, basePath: false, permanent: false }] : [];
+    const list: Awaited<ReturnType<NonNullable<NextConfig["redirects"]>>> = [
+      { source: "/demo", destination: "/release-check", permanent: false },
+    ];
+    if (base) list.push({ source: "/", destination: base, basePath: false, permanent: false });
+    return list;
   },
   async rewrites() {
     return [

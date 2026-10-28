@@ -156,3 +156,6 @@
 .control:has(.segmented) { flex-shrink: 0; }
 .toolbar-actions { flex: none; }
 @media (max-width: 1600px) { .hide-narrow { display: none; } }
+
+.key-callout{display:flex;align-items:center;gap:16px;margin:0 0 24px;padding:16px 20px;border:1px solid var(--line);border-left:3px solid var(--primary,#8b7cf6);border-radius:12px;background:var(--surface)}
+.key-callout>svg{flex:none;color:var(--primary,#8b7cf6)}.key-callout>div{display:grid;gap:3px;min-width:0;flex:1}.key-callout strong{font-size:14px}.key-callout span{font-size:12px;line-height:1.6;color:var(--muted)}.key-callout .button{flex:none}

@@ -13,8 +13,8 @@ const browser=await chromium.launch();
 const context=await browser.newContext({viewport:{width:1920,height:1080},recordVideo:{dir:output,size:{width:1920,height:1080}},reducedMotion:'reduce'});
 const page=await context.newPage();
 const pause=ms=>page.waitForTimeout(ms);
-await page.goto(base+'/demo');
-await page.getByRole('heading',{name:'A convincing voice. A verifiable decision.'}).waitFor();
+await page.goto(base+'/release-check');
+await page.getByRole('heading',{name:'Release check',level:1}).waitFor();
 await page.addStyleTag({content:'nextjs-portal{display:none}'});
 // Start an explicitly offline run so the capture never depends on external services.
 await page.getByRole('button',{name:'Run release check'}).click();

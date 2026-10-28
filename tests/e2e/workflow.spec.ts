@@ -6,7 +6,7 @@ test("graph execution, evidence, refusal fix, regression and reload", async ({
   test.setTimeout(60000);
   const existingRuns = await (await page.request.get("/api/runs")).json();
   await page.goto("/");
-  await page.getByRole("button", { name: "Run the attack demo" }).click();
+  await page.getByRole("button", { name: "Run an attack" }).click();
   await expect(page.getByLabel("Workflow name")).toHaveValue(
     "Bolna Agent Security Test",
   );
@@ -148,7 +148,7 @@ test("overview navigation, theme, and compact screen", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
 
-test("demo studio executes a bilingual release check and exposes recorded evidence", async ({page}) => {
+test("release check executes a bilingual run and exposes recorded evidence", async ({page}) => {
   test.setTimeout(60000);
   const errors: string[]=[];page.on('pageerror', e=>errors.push(e.message));
   let releaseBootstrap!: () => void;
@@ -158,11 +158,11 @@ test("demo studio executes a bilingual release check and exposes recorded eviden
     if (route.request().method() === 'GET' && firstList) { firstList = false; await bootstrap; }
     await route.continue();
   });
-  await page.goto('/demo');
+  await page.goto('/release-check');
   await expect(page.getByRole('button',{name:'Run release check'})).toBeDisabled();
   releaseBootstrap();
   await expect(page.getByRole('button',{name:'Run release check'})).toBeEnabled();
-  await expect(page.getByRole('heading',{name:'A convincing voice. A verifiable decision.'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Release check',level:1})).toBeVisible();
   await page.getByRole('button',{name:'Run release check'}).click();
   await expect(page.locator('.studio-gate strong')).toHaveText('Rehearsal passed',{timeout:30000});
   await expect(page.locator('.studio-table tbody tr')).toHaveCount(8);

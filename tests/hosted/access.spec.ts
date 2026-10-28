@@ -3,7 +3,7 @@ const at = (path: string) => `${process.env.E2E_BASE_PATH || ""}${path}`;
 
 test("anonymous, malformed and spoofed requests cannot reach private evidence", async ({ playwright, baseURL }) => {
   const anonymous = await playwright.request.newContext({ baseURL, httpCredentials: undefined });
-  for (const path of ["/", "/demo", "/api/settings", "/api/runs", "/api/campaigns", "/api/runs/unknown/export"]) {
+  for (const path of ["/", "/release-check", "/api/settings", "/api/runs", "/api/campaigns", "/api/runs/unknown/export"]) {
     const response = await anonymous.get(at(path));
     expect(response.status()).toBe(401);
     expect(response.headers()["www-authenticate"]).toContain("Basic");
@@ -20,8 +20,8 @@ test("anonymous, malformed and spoofed requests cannot reach private evidence", 
 });
 
 test("signed-in browser can run a release check and inspect streamed evidence", async ({ page, request, baseURL }) => {
-  await page.goto(at("/demo"));
-  await expect(page.getByRole("heading", {name: "A convincing voice. A verifiable decision."})).toBeVisible();
+  await page.goto(at("/release-check"));
+  await expect(page.getByRole("heading", {name: "Release check", level: 1})).toBeVisible();
   const settings = await request.get(at("/api/settings"));
   expect(settings.status()).toBe(200);
   expect(settings.headers()["cache-control"]).toContain("no-store");

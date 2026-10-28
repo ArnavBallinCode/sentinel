@@ -16,7 +16,7 @@ const settings = await json('/settings');
 assert.equal(settings.bolna_configured, false, 'Use a credential-free instance.');
 assert.equal(settings.semantic_configured, false, 'Use a credential-free instance.');
 assert.equal(settings.allowed_numbers_count, 0);
-assert.equal((await fetch(`${base}/demo`)).status, 200);
+assert.equal((await fetch(`${base}/release-check`)).status, 200);
 let campaign = await json('/campaigns', {
   method: 'POST', headers: {'Content-Type': 'application/json'},
   body: JSON.stringify({engine: 'scripted'}),

@@ -44,7 +44,7 @@ trap 'exit 143' TERM
 uv run --directory services/api uvicorn sentinel.main:app "${args[@]}" &
 api_pid=$!
 node scripts/local-server.mjs wait "$api_pid" "http://127.0.0.1:$DEV_API_PORT/api/health"
-printf '\nSentinel Studio: http://127.0.0.1:%s/demo\nPress Ctrl+C to stop both services.\n\n' "$DEV_WEB_PORT"
+printf '\nSentinel: http://127.0.0.1:%s/\nPress Ctrl+C to stop both services.\n\n' "$DEV_WEB_PORT"
 API_URL="http://127.0.0.1:$DEV_API_PORT" node node_modules/next/dist/bin/next dev apps/web --hostname 127.0.0.1 --port "$DEV_WEB_PORT" &
 web_pid=$!
 wait "$web_pid"
