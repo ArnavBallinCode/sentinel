@@ -763,3 +763,27 @@ def test_llm_replay_uses_private_original_prompt_snapshot(client,monkeypatch):
     assert b['status']=='completed'
     assert prompts==['original private prompt','original private prompt\n\nCandidate section']
     assert 'original private prompt' not in client.get(f'/api/runs/{b["id"]}/export').text
+
+
+async def test_stopping_a_release_check_works_even_when_a_run_swallows_cancellation(client, monkeypatch):
+    from sentinel import campaigns, main
+    from sentinel.executor import TASKS
+
+    async def slow_start(req):
+        async def run():
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                pass  # the real executor also finishes quietly when cancelled
+
+        TASKS["r1"] = asyncio.create_task(run())
+        return {"id": "r1"}
+
+    monkeypatch.setattr(main, "start", slow_start)
+    store.put("campaign", "c1", {"id": "c1", "status": "running", "engine": "scripted", "agent_id": None, "patch": "p" * 30,
+                                 "snapshot": None, "cases": [], "completed_runs": 0, "total": 8})
+    campaigns.CAMPAIGNS["c1"] = asyncio.create_task(campaigns.execute("c1"))
+    await asyncio.sleep(0.2)
+    stopped = await asyncio.wait_for(campaigns.cancel("c1"), timeout=10)
+    assert stopped["status"] == "cancelled"
+    TASKS["r1"].cancel()

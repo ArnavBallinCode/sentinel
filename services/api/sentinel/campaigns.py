@@ -15,6 +15,7 @@ from .providers import configured_providers
 
 router = APIRouter()
 CAMPAIGNS = {}
+STOPPING = set()  # a run swallows its own cancellation, so a stopped check must notice it was asked to stop
 
 
 class CampaignRequest(BaseModel):
@@ -107,6 +108,8 @@ async def execute(id):
                     c['active_run'] = current_run
                     store.put('campaign', id, c)
                     await TASKS[current_run]
+                    if id in STOPPING:
+                        raise asyncio.CancelledError
                     r = store.get('run', current_run)
                     result = metrics(r)
                     outputs = [n.get('output') or {} for n in r['nodes'].values()]
@@ -132,6 +135,7 @@ async def execute(id):
         c['status'] = 'failed'
         c['error'] = 'Release check stopped. Inspect the active run for the failing step; completed evidence is retained.'
     finally:
+        STOPPING.discard(id)
         c['ended_at'] = time.time()
         store.put('campaign', id, c)
 
@@ -141,6 +145,7 @@ async def cancel(id: str):
     c = campaign(id)
     task = CAMPAIGNS.get(id)
     if task:
+        STOPPING.add(id)
         task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        await asyncio.wait({task}, timeout=20)
     return campaign(id)
