@@ -21,6 +21,8 @@ from .results import metrics, comparison_reasons, digest, provenance
 async def lifespan(app):
     if os.getenv("RENDER") == "true" and len(os.getenv("SENTINEL_API_TOKEN", "")) < 32:
         raise RuntimeError("Hosted deployment requires a strong SENTINEL_API_TOKEN.")
+    from .public_demo import validate_environment
+    validate_environment()
     store.init_db()
     for kind in ("adversarial", "voice", "audit"):
         if not store.get("workflow", kind):
@@ -67,6 +69,9 @@ async def security(request, call_next):
         and not hmac.compare_digest(request.headers.get("X-Sentinel-Token", "").encode(), token.encode())
     ):
         return JSONResponse({"detail": "Unauthorized"}, 401)
+    from .public_demo import enabled, allowed_request
+    if enabled() and not allowed_request(request.method, request.url.path):
+        return JSONResponse({"detail": "Public rehearsal: only synthetic release checks and evidence browsing are enabled. Live calls, uploads and provider actions are disabled."}, 403)
     if request.method in ("POST", "PUT", "DELETE"):
         origin = request.headers.get("origin")
         if origin and origin not in os.getenv(
@@ -122,7 +127,8 @@ def settings():
         "allowed_numbers_count": len(
             [x for x in os.getenv("ALLOWED_TEST_NUMBERS", "").split(",") if x]
         ),
-        "deployment": "single-user local workspace",
+        "public_demo": os.getenv("SENTINEL_PUBLIC_DEMO") == "true",
+        "deployment": "Shared public synthetic rehearsal" if os.getenv("SENTINEL_PUBLIC_DEMO") == "true" else "single-user local workspace",
         "limitations": [
             "Live calls require an opted-in allowlisted number.",
             "Hosted utterance interception is unsupported.",

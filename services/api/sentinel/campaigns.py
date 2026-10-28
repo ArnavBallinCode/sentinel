@@ -29,7 +29,8 @@ def public(campaign):
 
 @router.get('/api/demo-config')
 def demo_config():
-    return {'default_patch': redteam.DEFAULT_PATCH}
+    from .public_demo import enabled
+    return {'default_patch': redteam.DEFAULT_PATCH, 'public_demo': enabled()}
 
 
 @router.get('/api/campaigns')
@@ -47,6 +48,12 @@ def campaign(id: str):
 
 @router.post('/api/campaigns', status_code=201)
 async def create(req: CampaignRequest):
+    from .public_demo import enabled
+    if enabled():
+        if req.engine != 'scripted' or req.agent_id or req.patch != redteam.DEFAULT_PATCH:
+            raise HTTPException(403, 'Public rehearsal uses synthetic fixtures and the supplied guardrails only.')
+        if len(store.all_docs('campaign')) >= 100:
+            raise HTTPException(429, 'Demo run limit reached. Explore the saved release checks below.')
     if any(c['status'] == 'running' for c in store.all_docs('campaign')):
         raise HTTPException(409, 'A release check is already running. Finish or stop it first.')
     if req.engine == 'llm' and not configured_providers():
