@@ -1,0 +1,30 @@
+# Replaces only the Sentinel service; the private sentinel-data volume is preserved.
+# Uses the existing private gateway token, but explicitly removes provider access.
+name: sentinel
+services:
+  sentinel:
+    build:
+      context: ../..
+      dockerfile: deploy/server/Dockerfile
+    env_file: .env
+    environment:
+      SENTINEL_PUBLIC_DEMO: "true"
+      SENTINEL_REQUIRE_AUTH: "true"
+      SENTINEL_DATA_DIR: /app/data/public-demo
+      DATABASE_URL: sqlite:////app/data/public-demo/sentinel.db
+      BOLNA_API_KEY: ""
+      OPENAI_API_KEY: ""
+      GROQ_API_KEY: ""
+      ALLOWED_TEST_NUMBERS: ""
+      MAX_LIVE_CALLS_PER_DAY: "0"
+      TOOL_ENDPOINT_TOKEN: ""
+      WEBHOOK_SECRET: ""
+      ALLOWED_ORIGINS: https://voxbento.com
+    ports:
+      - "127.0.0.1:3100:7860"
+    mem_limit: 768m
+    restart: unless-stopped
+    volumes:
+      - sentinel-public-data:/app/data
+volumes:
+  sentinel-public-data:
