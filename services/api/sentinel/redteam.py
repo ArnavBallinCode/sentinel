@@ -76,7 +76,12 @@ async def llm(messages, *, tools=None, json_mode=False, max_tokens=900, temperat
     if r.status_code == 413:
         raise ValueError(f"The agent prompt is too large for this {provider['name']} plan's per-minute token limit. Use a paid Groq tier or OPENAI_API_KEY, or set a shorter prompt override.")
     if r.status_code != 200:
-        raise ValueError(f"{provider['name']} request failed ({r.status_code}).")
+        name = provider["name"].capitalize()
+        if r.status_code == 429:
+            raise ValueError(f"{name} rate limit reached for this key. Wait a minute, or use a key with a higher limit, then run again.")
+        if r.status_code in (401, 403):
+            raise ValueError(f"{name} rejected this key. Check it under Connections.")
+        raise ValueError(f"{name} request failed ({r.status_code}).")
     return r.json()["choices"][0]["message"]
 
 
