@@ -530,6 +530,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-multipart" },
     { name = "sqlalchemy" },
+    { name = "unilimit" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -546,6 +547,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.10,<3" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },
+    { name = "unilimit", specifier = ">=0.1.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32,<1" },
 ]
 
@@ -669,6 +671,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a3/26/b09b8010994eccc3c09092e6b34058f36a460eea2d4c3e8b910c695975a0/typing_inspection-0.4.4.tar.gz", hash = "sha256:547274fa6b0a561ccf549cc9524b999a578e737d015d8709d021f9d0d13bea47", size = 76928, upload-time = "2026-08-12T12:37:25.997Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/67/81/4add07e5172b7ac40d8ed5ff580409a7801a4fe26d529bdd915401dabfbe/typing_inspection-0.4.4-py3-none-any.whl", hash = "sha256:65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147", size = 14750, upload-time = "2026-08-12T12:37:24.648Z" },
+]
+
+[[package]]
+name = "unilimit"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/80/12ecefa51989f4d2b8503d4bcebee711cca675df3ffba9e75a2a14e86e8e/unilimit-0.1.1.tar.gz", hash = "sha256:1b7b2af301b4988e3fdf61e50b02a7527599974c2db691b5b535fae5c06fe724", size = 241462, upload-time = "2026-10-30T20:31:00.426Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/dc/f638f9916e679e9c70ceac0b1b2ac378f1fed36d30db501e2a9eb62c95e3/unilimit-0.1.1-py3-none-any.whl", hash = "sha256:e2e6b040531275195a71000c7cabf154e88ae83c57351334a3f8af11a8273965", size = 113166, upload-time = "2026-10-30T20:30:58.717Z" },
 ]
 
 [[package]]
